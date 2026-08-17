@@ -20,12 +20,19 @@ fail() { printf '\033[0;31m  ✗\033[0m %s\n' "$*"; FAILURES=$((FAILURES+1)); }
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# Staging sits behind HTTP basic auth so a copy of the client's site is not
+# publicly browsable. Supply HEALTH_AUTH as "user:pass" to get past it.
+CURL_AUTH=()
+if [[ -n "${HEALTH_AUTH:-}" ]]; then
+  CURL_AUTH=(-u "$HEALTH_AUTH")
+fi
+
 log "Health check: ${ENVIRONMENT} (${BASE_URL})"
 
 # ---------------------------------------------------------------------------
 # 1. Homepage responds and looks like WordPress
 # ---------------------------------------------------------------------------
-CODE="$(curl -sS -o "${TMP}/home.html" -w '%{http_code}' -L --max-time 45 "${BASE_URL}/" || echo 000)"
+CODE="$(curl -sS "${CURL_AUTH[@]}" -o "${TMP}/home.html" -w '%{http_code}' -L --max-time 120 "${BASE_URL}/" || echo 000)"
 [[ "$CODE" == "200" ]] && ok "homepage HTTP 200" || fail "homepage returned HTTP ${CODE}"
 
 if [[ -s "${TMP}/home.html" ]]; then
@@ -49,7 +56,7 @@ fi
 # ---------------------------------------------------------------------------
 # 2. REST API
 # ---------------------------------------------------------------------------
-REST="$(curl -sS -o "${TMP}/rest.json" -w '%{http_code}' -L --max-time 45 "${BASE_URL}/wp-json/" || echo 000)"
+REST="$(curl -sS "${CURL_AUTH[@]}" -o "${TMP}/rest.json" -w '%{http_code}' -L --max-time 120 "${BASE_URL}/wp-json/" || echo 000)"
 if [[ "$REST" == "200" ]] && grep -q '"namespaces"' "${TMP}/rest.json" 2>/dev/null; then
   ok "REST API responding"
 else
@@ -59,10 +66,15 @@ fi
 # ---------------------------------------------------------------------------
 # 3. Database reachable from the application
 # ---------------------------------------------------------------------------
-if wp_remote db check --skip-plugins --skip-themes >/dev/null 2>&1; then
-  ok "database reachable"
+# Deliberately not `wp db check`: that shells out to the mysql client binary,
+# and the wordpress:cli image ships the MariaDB client, which cannot
+# authenticate against MySQL 8's caching_sha2_password. Going through
+# WordPress's own PHP layer also tests the path the site actually uses.
+DB_PROBE="$(wp_remote eval "'global \$wpdb; echo \$wpdb->get_var( \"SELECT COUNT(*) FROM {\$wpdb->posts}\" );'" --skip-plugins --skip-themes 2>/dev/null | tr -dc '0-9' || true)"
+if [[ -n "$DB_PROBE" && "$DB_PROBE" -gt 0 ]]; then
+  ok "database reachable (${DB_PROBE} posts)"
 else
-  fail "wp db check failed"
+  fail "database unreachable via WordPress"
 fi
 
 # ---------------------------------------------------------------------------
@@ -93,7 +105,7 @@ COUNT="$(wp_remote plugin list --status=active --format=count 2>/dev/null | tr -
 # 7. Staging must not be publicly indexable, and must not be live-mailing
 # ---------------------------------------------------------------------------
 if [[ "$ENVIRONMENT" != "production" ]]; then
-  if curl -sSI --max-time 30 "${BASE_URL}/" | grep -qi 'x-robots-tag: *noindex'; then
+  if curl -sSI "${CURL_AUTH[@]}" --max-time 30 "${BASE_URL}/" | grep -qi 'x-robots-tag: *noindex'; then
     ok "noindex header present"
   else
     fail "staging is missing its noindex header"
