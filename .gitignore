@@ -1,0 +1,66 @@
+# ---------------------------------------------------------------------------
+# Secrets and environment-specific config — never commit these.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+wp-config.php
+*.pem
+*.key
+*.ppk
+id_rsa*
+id_ed25519*
+known_hosts
+auth.json
+
+# ---------------------------------------------------------------------------
+# WordPress core — supplied by the wordpress:php8.2-fpm image, not versioned.
+# ---------------------------------------------------------------------------
+/wp-admin/
+/wp-includes/
+/wp-*.php
+/index.php
+/xmlrpc.php
+/license.txt
+/readme.html
+
+# ---------------------------------------------------------------------------
+# Content that belongs to the site, not to the codebase.
+# ---------------------------------------------------------------------------
+wp-content/uploads/
+wp-content/upgrade/
+wp-content/upgrade-temp-backup/
+wp-content/cache/
+wp-content/litespeed/
+wp-content/backup*/
+wp-content/ai1wm-backups/
+wp-content/updraft/
+wp-content/debug.log
+wp-content/advanced-cache.php
+wp-content/object-cache.php
+wp-content/db.php
+
+# Third-party themes and plugins are pinned in composer.json, not vendored.
+wp-content/themes/*
+!wp-content/themes/zakra-child/
+wp-content/plugins/*
+!wp-content/plugins/yesgermany-schema-engine/
+
+# ---------------------------------------------------------------------------
+# Database dumps — production data must never enter version control.
+# ---------------------------------------------------------------------------
+*.sql
+*.sql.gz
+*.sql.zip
+
+# ---------------------------------------------------------------------------
+# Build and tooling
+# ---------------------------------------------------------------------------
+/vendor/
+node_modules/
+.release-id
+.backup-stamp
+*.log
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,363 @@
+/*
+Theme Name:   Zakra Child (YES Germany)
+Theme URI:    https://www.yesgermany.com/
+Description:  Child theme for YES Germany. Holds all site-specific CSS that was
+              previously appended directly to the parent zakra stylesheet, which
+              is why the parent could not be updated. Keeping it here means zakra
+              can be updated normally.
+Author:       Stealth Digital
+Template:     zakra
+Version:      1.0.0
+License:      GNU General Public License v2 or later
+Text Domain:  zakra-child
+*/
+
+/* ---------------------------------------------------------------------------
+ * Custom styles carried over verbatim from the parent theme edit.
+ * ------------------------------------------------------------------------ */
+
+/* new page css start */
+.bnr-cont .elementor-heading-title strong {
+    color: #ffcf00;
+    font-size: 40px;
+    font-weight: 600;
+}
+.ee-row input {
+    height: 45px !important;
+    background: #fff;
+    padding: 7px 6px !important;
+    font-weight: 400;
+    font-size: 13px !important;
+    color: #000;
+    line-height: 28px;
+    border: 1px solid #7b7b7b !important;
+    margin-bottom: 0px;
+    border-radius: 5px !important;
+    cursor: auto !important;
+}
+
+label[for=ee-form-5-form-5-iAgree] {
+    align-items: center;
+}
+input#ee-form-5-form-5-iAgree {
+    height: auto !important;
+}
+.ee-row .select2-container--default .select2-selection--single {
+    height: 45px !important;
+    background: #fff;
+    padding: 5px 6px !important;
+    font-weight: 400;
+    font-size: 13px !important;
+    color: #000;
+    line-height: 28px;
+    border: 1px solid #7b7b7b !important;
+    margin-bottom: 0px;
+    border-radius: 5px !important;
+    cursor: auto !important;
+}
+button#ee-form-5-form-5-submit {
+    margin-top: 1px;
+    padding: 18px 50px 18px 50px !important;
+    border-radius: 50px;
+    background: #e10000 !important;
+    border: none !important;
+    font-size: 18px !important;
+    letter-spacing: 0.3px;
+}
+.ee-form-footer.ee-row.controls {
+    justify-content: left;
+    margin: 10px 0;
+}
+.ee-row input[type=tel] {
+    padding-left: 83px !important;
+}
+.topFeatures{
+	position: relative;
+}
+.topFeatures .why-yes-img img {
+    width: 130px;
+}
+.topFeatures .why-yes-img {
+    position: absolute;
+    top: -60px;
+    right: -10px;
+    width: 160px;
+}
+.popular-stream {
+    padding: 20px;
+    border: 1px solid #d7d7d7;
+    border-radius: 20px;
+    margin: 0px 10px;
+    background: #f8faf9ba;
+    box-shadow: 0 6px 30px 0 rgba(0,0,0,.1);
+}
+.popular-stream .elementor-widget-container p{
+	margin-bottom:0px;
+}
+.working-cont-slider .mdp-card-media-top {
+    position: relative;
+}
+
+.working-cont-slider .mdp-card-media-top img {
+    height: 300px;
+    object-fit: cover;
+    position: relative;
+}
+
+.working-cont-slider .mdp-card-body {
+    position: absolute;
+    bottom: 10px;
+    padding: 10px;
+    text-align: center;
+    left: 0;
+    right: 0;
+    background-color: rgb(0 0 0 / 63%);
+    width: 90% !important;
+    margin: auto;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border-radius: 10px;
+}
+.working-cont-slider .mdp-card-body p {
+    margin-bottom: 0;
+	color: #fff;
+}
+.working-cont-slider .mdp-card-body p strong {
+    font-weight: 800;
+}
+/* div#faq-section .elementor-accordion-item {
+    box-shadow: 0 1px 3px rgb(98 98 98 / 21%), 0 1px 2px rgb(0 0 0 / 10%);
+    padding: 7px 0px;
+    border-radius: 10px;
+    margin: 10px;
+} */
+.solution-slider-cont .mdp-cards-skin .mdp-card-media-top {
+    width: 70%;
+    float: left;
+}
+.solution-slider-cont .mdp-cards-skin .mdp-card-body {
+    width: 30%;
+    float: left;
+    margin-left: -80px;
+    padding: 50px;
+    margin-top: 150px;
+    background-image: linear-gradient(45deg, rgb(161, 38, 47) 0%, rgb(255, 207, 0) 100%);
+    border-radius: 10px;
+}
+.solution-slider-cont .mdp-cards-skin .mdp-card-body h3 {
+    font-size: 35px;
+    margin-bottom: 10px;
+    color: #fff;
+}
+.solution-slider-cont .mdp-cards-skin .mdp-card-body p{
+	    color: #fff;
+	margin-bottom:0px;
+}
+.mdp-card-default {
+    box-shadow: none !important;
+}
+/* new page css end */
+
+
+
+@media screen and (max-width: 1280px){
+	.page_bnr_sec {
+    padding: 30px 10px !important;
+}
+	.page_trused {
+	 padding: 30px 10px !important;	
+	}
+	.page_reason_sec {
+	 padding: 30px 10px 0px 10px !important;	
+	}
+	.page_reason_cont{
+		padding: 20px 10px 30px 10px !important;
+	}
+}
+
+/* ======= German edcation page responsive css ======= */
+
+	.solution-slider-cont .mdp-cards-skin .mdp-card-body h3 {
+    font-size: 24px;
+}
+	.solution-slider-cont .mdp-cards-skin .mdp-card-media-top {
+    width: 100% !important;
+}
+	.solution-slider-cont .mdp-cards-skin .mdp-card-body {
+    width: 100% !important;
+    margin-left: 0 !important;
+    padding: 20px !important;
+    margin-top: 10px !important;
+}
+	.popular-stream {
+    margin-top: 20px !important;
+}
+/* 	ul.study_list {
+    margin-left: 0 !important;
+} */
+	ul.study_list li a {
+    padding: 8px 20px !important;
+    font-size: 12px !important;
+}
+	button#ee-form-5-form-5-submit {
+    padding: 12px 35px 12px 35px !important;
+    font-size: 14px !important;
+}
+
+
+
+
+
+
+
+
+
+
+
+/* ======== Yes Germany CSS start here ======== */
+.study_list ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+ul.study_list li {
+    display: inline-block;
+    margin-right: 10px;
+    margin-bottom: 20px;
+}
+ul.study_list li a.active {
+    color: #ffffff;
+    background-color: #cf4534;
+    border: 1px solid #cf4534;
+}
+ul.study_list li a {
+    color: #fff;
+    padding: 6px 20px;
+    border-radius: 50px;
+    border: 1px solid #ffffff;
+    font-size: 14px;
+    -webkit-transition: all 0.3s ease;
+    -ms-transition: all 0.3s ease;
+    transition: all 0.3s ease;
+	text-decoration: none;
+}
+ul.study_list li a:hover {
+    color: #fff !important;
+    background-color: #cf4534;
+    border: 1px solid #cf4534;
+}
+div#faq-section .elementor-accordion-item {
+    /* box-shadow: 0 1px 3px rgb(98 98 98 / 21%), 0 1px 2px rgb(0 0 0 / 10%); */
+    padding: 7px 0px;
+    border-radius: 0px;
+    margin: 10px;
+    border-bottom: 1px solid #ccc;
+}
+div#faq-section .elementor-accordion .elementor-accordion-item {
+    border-bottom: 1px solid #ccc;
+}
+div#faq-section .elementor-accordion .elementor-tab-title {
+    padding: 15px 0px;
+}
+
+.german_btn a:hover {
+    color: #fff !important;
+	text-decoration: none !important;
+}
+
+.why_icon_box .elementor-icon-box-icon {
+    background: #cb372b;
+    border-radius: 50%;
+    padding: 30px;
+    width: 120px;
+    height: 120px;
+}
+button#ee-form-5-form-5-submit:hover {
+    color: #fff !important;
+}
+
+	ul.study_list {
+    margin-left: 0 !important;
+}
+
+
+
+@media (min-width:768px) {
+            .ggggsssssuperParent {
+                display: flex;
+                gap: 20px;
+                justify-content: flex-start;
+                padding: 10px;
+            }
+
+            .gggssssParent {
+                width: 100%;
+                max-width: max-content;
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                justify-content: flex-start;
+                box-shadow: 0 0 5px rgba(0, 0, 0, 0.336);
+                padding: 8px 25px;
+                border-radius: 25px;
+                text-decoration: none;
+                color: black;
+            }
+
+            .gggssssParent p {
+                margin: 0;
+                padding: 0;
+            }
+
+            .gggssssParent img {
+                width: 36px;
+            }
+
+            .gggssssParent span {
+                display: none;
+            }
+
+            .gggssssParent p {
+                font-weight: bold;
+            }
+        }
+
+        @media (max-width:767px) {
+            .ggggsssssuperParent {
+                display: flex;
+                gap: 20px;
+                justify-content: space-between;
+                padding: 0px;
+            }
+
+            .gggssssParent {
+                width: 100%;
+                display: flex;
+                gap: 7px;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 0 5px rgba(0, 0, 0, 0.336);
+                padding: 3px 10px;
+                border-radius: 25px;
+                text-decoration: none;
+                color: black;
+            }
+
+            .gggssssParent p {
+                margin: 0;
+                padding: 0;
+                font-size: 0.7rem;
+            }
+
+            .gggssssParent img {
+                width: 36px;
+            }
+
+            .gggssssParent span {
+                display: none;
+            }
+
+            .gggssssParent p {
+                font-weight: bold;
+            }
+        }
