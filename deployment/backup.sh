@@ -30,8 +30,16 @@ remote "mkdir -p '${DEST}' && chmod 700 '${DEST}'"
 # ---------------------------------------------------------------------------
 log "Exporting database"
 if [[ "$USE_DOCKER" == "true" ]]; then
-  remote "cd '${STACK_DIR}' && docker compose exec -T --user www-data php \
-            wp db export - --single-transaction --quick --skip-plugins --skip-themes --path=/var/www/html \
+  # Dump straight from the mysql container rather than through WP-CLI:
+  # `wp db export` shells out to the mysqldump binary, and the wordpress:cli
+  # image ships the MariaDB client, which cannot authenticate against MySQL 8's
+  # caching_sha2_password. Credentials are read from the server-side .env,
+  # which is the only place they exist.
+  remote "cd '${STACK_DIR}' && set -a && . ./.env && set +a && \
+          docker compose exec -T db mysqldump \
+            -u root -p\"\$DB_ROOT_PASSWORD\" \
+            --single-transaction --quick --default-character-set=utf8mb4 \
+            --routines --events \"\$DB_NAME\" 2>/dev/null \
           | gzip -6 > '${DEST}/database.sql.gz'" \
     || die "Database export failed — aborting before any files are touched."
 else
