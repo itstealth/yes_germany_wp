@@ -64,14 +64,19 @@ PROD_KEY="${PROD_SSH_KEY_FILE:-${HOME}/.ssh/prod_deploy_key}"
 
 SSH_BASE="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=20"
 
+# Staging is reached on a non-standard port: Tailscale SSH intercepts tailnet
+# port 22 and ignores SSH keys, which a CI runner can never satisfy.
+STG_PORT="${STAGING_PORT:-2222}"
+PROD_PORT="${PROD_PORT:-22}"
+
 # Streaming variants — stdin is passed through, used for imports and tar pipes.
 ssh_stg() {
   # shellcheck disable=SC2086
-  ssh -i "$STG_KEY" $SSH_BASE "${STG_USER}@${STG_HOST}" "$@"
+  ssh -i "$STG_KEY" -p "$STG_PORT" $SSH_BASE "${STG_USER}@${STG_HOST}" "$@"
 }
 ssh_prod() {
   # shellcheck disable=SC2086
-  ssh -i "$PROD_KEY" $SSH_BASE "${PROD_USER}@${PROD_HOST}" "$@"
+  ssh -i "$PROD_KEY" -p "$PROD_PORT" $SSH_BASE "${PROD_USER}@${PROD_HOST}" "$@"
 }
 
 # Query variants — MUST use -n.
@@ -81,11 +86,11 @@ ssh_prod() {
 # been edited?" guard pass by doing nothing at all.
 ssh_stg_q() {
   # shellcheck disable=SC2086
-  ssh -n -i "$STG_KEY" $SSH_BASE "${STG_USER}@${STG_HOST}" "$@"
+  ssh -n -i "$STG_KEY" -p "$STG_PORT" $SSH_BASE "${STG_USER}@${STG_HOST}" "$@"
 }
 ssh_prod_q() {
   # shellcheck disable=SC2086
-  ssh -n -i "$PROD_KEY" $SSH_BASE "${PROD_USER}@${PROD_HOST}" "$@"
+  ssh -n -i "$PROD_KEY" -p "$PROD_PORT" $SSH_BASE "${PROD_USER}@${PROD_HOST}" "$@"
 }
 
 [[ -f "$STG_KEY"  ]] || die "Staging SSH key not found at ${STG_KEY}"
