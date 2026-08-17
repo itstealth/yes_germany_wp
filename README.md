@@ -109,11 +109,33 @@ Set per environment (Settings → Environments):
 | Secret | Description |
 |---|---|
 | `DEPLOY_HOST` | Target hostname or IP |
-| `DEPLOY_USER` | Deploy user (never the primary cPanel account) |
+| `DEPLOY_USER` | Deploy account — `ygdeploy` on staging, never root |
+| `DEPLOY_PORT` | `2222` on staging (see below), `22` on production |
 | `DEPLOY_SSH_KEY` | Private key, deploy-only |
 | `DEPLOY_KNOWN_HOSTS` | Pinned host key — prevents MITM; do not omit |
 | `REMOTE_ROOT` | WordPress document root |
 | `REMOTE_BACKUP_DIR` | Backup path **outside** the web root |
+| `HEALTH_AUTH` | `user:pass` for staging's basic auth |
+| `TS_AUTHKEY` | Tailscale auth key (repo-level — both workflows need it) |
+
+### Why staging uses port 2222 and a dedicated account
+
+The OVH host is reachable only over Tailscale, and **Tailscale SSH intercepts
+tailnet port 22**, ignoring SSH keys in favour of node-IP rules in the tailnet
+policy. GitHub runners are ephemeral and get a new tailnet IP every run, so they
+can never match such a rule — and one rule uses the `check` action, which waits
+for interactive browser approval and makes a headless client hang indefinitely.
+
+CI therefore connects on **port 2222**, which tailscaled does not intercept, as
+**`ygdeploy`** — an account that owns `/opt/yesgermany` and is in the `docker`
+group, and nothing else. A `Match User ygdeploy` block permits publickey only;
+two-factor authentication remains required for every other account and on port
+22. `ufw` exposes 2222 on the `tailscale0` interface alone, so it is not
+internet-facing.
+
+The tailnet range is whitelisted in CrowdSec and fail2ban, so a runner cannot be
+banned mid-deploy — CrowdSec bans via an nftables set that `iptables` does not
+show and `fail2ban-client` cannot clear, which is painful to diagnose.
 
 The `production` environment should have **required reviewers** configured. That
 approval gate is the actual safety mechanism; the `DEPLOY` confirmation string
