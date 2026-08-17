@@ -26,6 +26,15 @@ services:
       - --collation-server=utf8mb4_unicode_ci
       # Production dump contains large Elementor rows.
       - --max_allowed_packet=256M
+      # The database is ~560 MB, dominated by a 314 MB postmeta table. The
+      # MySQL default buffer pool is 128 MB, so the working set does not fit
+      # and ordinary page queries fall through to disk on every request.
+      - --innodb-buffer-pool-size=2G
+      - --innodb-log-file-size=256M
+      # Elementor and WPDataTables build large temporary result sets; the 16 MB
+      # default spills them to disk.
+      - --tmp-table-size=128M
+      - --max-heap-table-size=128M
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD}"]
       interval: 10s
@@ -67,6 +76,7 @@ services:
       # host, and the same layout is used for production later.
       - ${WP_ROOT:-./wordpress}:/var/www/html
       - ./docker/php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini:ro
+      - ./docker/php/opcache.ini:/usr/local/etc/php/conf.d/opcache.ini:ro
     networks:
       - yg_staging_net
 
