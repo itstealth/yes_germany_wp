@@ -190,8 +190,66 @@ ssh_prod "cd '${PROD_ROOT}' && wp db export '${BACKUP_DIR}/preserved.sql' \
 # Job applications live INSIDE the posts table, which step 6 replaces. Copy them
 # into holding tables first so they can be put back afterwards, otherwise the
 # push silently destroys real applications.
+COMMENTS_BEFORE="$(ssh_prod_q "cd '${PROD_ROOT}' && wp db query \"SELECT COUNT(*) FROM ${PREFIX}comments;\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]+$' | head -1)"
+USERS_BEFORE="$(ssh_prod_q "cd '${PROD_ROOT}' && wp db query \"SELECT COUNT(*) FROM ${PREFIX}users;\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]+$' | head -1)"
+log "  baseline — comments: ${COMMENTS_BEFORE}, users: ${USERS_BEFORE}"
+
 JOBAPPS="$(ssh_prod_q "cd '${PROD_ROOT}' && wp db query \"SELECT COUNT(*) FROM ${PREFIX}posts WHERE post_type='awsm_job_application';\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]+$' | head -1)"
 log "  job applications on production: ${JOBAPPS:-0}"
+
+# ---------------------------------------------------------------------------
+# Restore-on-exit.
+#
+# This is the difference between "a failure loses client data" and "a failure is
+# just a failure". The push replaces the posts table, which contains real job
+# applications; previously they were put back at the END of the script, so a
+# connection drop mid-import left production missing them silently. That
+# happened, and 4 real applications had to be recovered by hand.
+#
+# The trap runs on ANY exit — error, kill, or success — so the protected rows go
+# back regardless of how the script ends.
+# ---------------------------------------------------------------------------
+RESTORE_NEEDED=false
+
+restore_protected() {
+  local rc=$?
+  [[ "$RESTORE_NEEDED" != "true" ]] && { rm -f "${TMP_SQL:-}" "${TMP_SQL:-}.tmp" 2>/dev/null; return $rc; }
+
+  echo
+  log "Restoring protected production data (exit code ${rc})"
+
+  if [[ "${JOBAPPS:-0}" -gt 0 ]]; then
+    ssh_prod_q "cd '${PROD_ROOT}' && wp db query \"
+      INSERT IGNORE INTO ${PREFIX}posts    SELECT * FROM ${PREFIX}_hold_jobapps;
+      INSERT IGNORE INTO ${PREFIX}postmeta SELECT * FROM ${PREFIX}_hold_jobmeta;\" --skip-plugins --skip-themes" >/dev/null 2>&1 || true
+
+    local now
+    now="$(ssh_prod_q "cd '${PROD_ROOT}' && wp db query \"SELECT COUNT(*) FROM ${PREFIX}posts WHERE post_type='awsm_job_application';\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]+$' | head -1)"
+
+    if [[ "${now:-0}" -ge "${JOBAPPS}" ]]; then
+      ok "job applications restored: ${now}/${JOBAPPS}"
+      ssh_prod_q "cd '${PROD_ROOT}' && wp db query \"
+        DROP TABLE IF EXISTS ${PREFIX}_hold_jobapps;
+        DROP TABLE IF EXISTS ${PREFIX}_hold_jobmeta;\" --skip-plugins --skip-themes" >/dev/null 2>&1 || true
+    else
+      warn "job applications NOT fully restored (${now:-0}/${JOBAPPS})."
+      warn "They remain in ${PREFIX}_hold_jobapps / ${PREFIX}_hold_jobmeta — do not drop those tables."
+    fi
+  fi
+
+  # Users and comments were snapshotted before the replace.
+  ssh_prod_q "cd '${PROD_ROOT}' && test -f '${BACKUP_DIR}/preserved.sql' && wp db import '${BACKUP_DIR}/preserved.sql' --skip-plugins --skip-themes" >/dev/null 2>&1 \
+    && ok "users and comments restored" || true
+
+  if [[ $rc -ne 0 ]]; then
+    warn "The push did not complete. Production content may be partially updated."
+    warn "Full restore if needed: ${BACKUP_DIR}/database.sql.gz"
+  fi
+
+  rm -f "${TMP_SQL:-}" "${TMP_SQL:-}.tmp" 2>/dev/null
+  return $rc
+}
+trap restore_protected EXIT
 
 if [[ "${JOBAPPS:-0}" -gt 0 ]]; then
   ssh_prod "cd '${PROD_ROOT}' && wp db query \"
@@ -210,6 +268,9 @@ if [[ "${JOBAPPS:-0}" -gt 0 ]]; then
     || die "Could not preserve job applications — aborting rather than risk losing them."
 fi
 
+# From here on, the posts table is about to be replaced. Arm the restore.
+RESTORE_NEEDED=true
+
 # ---------------------------------------------------------------------------
 # 5. Export content tables from staging.
 # ---------------------------------------------------------------------------
@@ -218,28 +279,53 @@ TBL_LIST=""
 for t in "${CONTENT_TABLES[@]}"; do TBL_LIST="${TBL_LIST}${PREFIX}${t},"; done
 TBL_LIST="${TBL_LIST%,}"
 
-TMP_SQL="$(mktemp)"
-trap 'rm -f "$TMP_SQL"' EXIT
-ssh_stg "cd '${STG_DIR}' && set -a && . ./.env && set +a && \
+# Compressed on the wire. The client's host accepts ~3 MB/s of raw data, and
+# SQL compresses roughly 7:1, so this turns a ~70s exposed stream into ~10s.
+TMP_SQL="$(mktemp).gz"
+ssh_stg_q "cd '${STG_DIR}' && set -a && . ./.env && set +a && \
          docker compose exec -T db mysqldump -u root -p\"\$DB_ROOT_PASSWORD\" \
            --single-transaction --quick --default-character-set=utf8mb4 \
-           \"\$DB_NAME\" ${TBL_LIST//,/ } 2>/dev/null" > "$TMP_SQL" \
+           \"\$DB_NAME\" ${TBL_LIST//,/ } 2>/dev/null | gzip -6" > "$TMP_SQL" \
   || die "Could not export content from staging."
 [[ -s "$TMP_SQL" ]] || die "Staging export is empty — refusing to wipe production content."
-ok "exported $(du -h "$TMP_SQL" | cut -f1) of content"
+gzip -t "$TMP_SQL" || die "Staging export is corrupt — refusing to continue."
+ok "exported $(du -h "$TMP_SQL" | cut -f1) compressed, integrity verified"
 
 # Rewrite staging URLs back to production before the data lands.
 log "Rewriting ${STG_URL} → ${PROD_URL}"
-sed -i "s|${STG_URL}|${PROD_URL}|g" "$TMP_SQL"
-REMAINING="$(grep -c "$STG_URL" "$TMP_SQL" || true)"
+gzip -dc "$TMP_SQL" | sed "s|${STG_URL}|${PROD_URL}|g" | gzip -6 > "${TMP_SQL}.tmp" \
+  && mv "${TMP_SQL}.tmp" "$TMP_SQL"
+REMAINING="$(gzip -dc "$TMP_SQL" | grep -c "$STG_URL" || true)"
 [[ "$REMAINING" == "0" ]] && ok "no staging URLs remain" || warn "${REMAINING} staging URL(s) still present"
 
 # ---------------------------------------------------------------------------
 # 6. Apply to production.
 # ---------------------------------------------------------------------------
-log "Applying content to production"
-ssh_prod "cd '${PROD_ROOT}' && wp db query" < "$TMP_SQL" \
+# Copy first, then import server-side. Streaming the import through a third
+# machine is what failed before: a dropped connection mid-import left the posts
+# table replaced but the protected rows not yet restored. A file copy can be
+# retried; a pipe cannot, and nothing is at risk while the file is in transit.
+log "Copying content to production"
+REMOTE_SQL="${BACKUP_DIR}/incoming-content.sql.gz"
+COPIED=false
+for attempt in 1 2 3; do
+  if scp -q -i "$PROD_KEY" -P "$PROD_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+       "$TMP_SQL" "${PROD_USER}@${PROD_HOST}:${REMOTE_SQL}"; then
+    if ssh_prod_q "gzip -t '${REMOTE_SQL}'"; then
+      COPIED=true; ok "copied and verified (attempt ${attempt})"; break
+    fi
+    warn "copy arrived corrupt, retrying"
+  else
+    warn "copy attempt ${attempt} failed, retrying"
+  fi
+  sleep 5
+done
+$COPIED || die "Could not copy content to production. Nothing was changed."
+
+log "Importing on production (server-side, no network in the loop)"
+ssh_prod "cd '${PROD_ROOT}' && gzip -dc '${REMOTE_SQL}' | wp db query" \
   || die "Import failed. Restore with: ${BACKUP_DIR}/database.sql.gz"
+ssh_prod_q "rm -f '${REMOTE_SQL}'" || true
 ok "content applied"
 
 # ---------------------------------------------------------------------------
@@ -249,25 +335,8 @@ log "Restoring preserved production data"
 ssh_prod "cd '${PROD_ROOT}' && wp db import '${BACKUP_DIR}/preserved.sql' --skip-plugins --skip-themes" >/dev/null 2>&1 \
   && ok "users and comments restored"
 
-# Job applications were inside the replaced posts table; put them back.
-if [[ "${JOBAPPS:-0}" -gt 0 ]]; then
-  ssh_prod "cd '${PROD_ROOT}' && wp db query \"
-    INSERT IGNORE INTO ${PREFIX}posts    SELECT * FROM ${PREFIX}_hold_jobapps;
-    INSERT IGNORE INTO ${PREFIX}postmeta SELECT * FROM ${PREFIX}_hold_jobmeta;
-  \" --skip-plugins --skip-themes" >/dev/null 2>&1 \
-    && ok "${JOBAPPS} job application(s) restored" \
-    || warn "Job applications NOT restored — they are still in ${PREFIX}_hold_jobapps"
-
-  RESTORED="$(ssh_prod_q "cd '${PROD_ROOT}' && wp db query \"SELECT COUNT(*) FROM ${PREFIX}posts WHERE post_type='awsm_job_application';\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]+$' | head -1)"
-  if [[ "${RESTORED:-0}" -eq "${JOBAPPS}" ]]; then
-    ok "verified ${RESTORED}/${JOBAPPS} job applications present"
-    ssh_prod "cd '${PROD_ROOT}' && wp db query \"
-      DROP TABLE IF EXISTS ${PREFIX}_hold_jobapps;
-      DROP TABLE IF EXISTS ${PREFIX}_hold_jobmeta;\" --skip-plugins --skip-themes" >/dev/null 2>&1
-  else
-    warn "Expected ${JOBAPPS} job applications, found ${RESTORED}. Holding tables KEPT for recovery."
-  fi
-fi
+# Job applications and users/comments are restored by the trap (restore_protected),
+# so they come back even if this script dies before reaching the end.
 
 # ---------------------------------------------------------------------------
 # 7b. Plugin settings and plugin activation.
@@ -366,6 +435,27 @@ ssh_stg "cd '${STG_ROOT}/wp-content' && tar czf - uploads 2>/dev/null" \
 ssh_prod "cd '${PROD_ROOT}' && wp cache flush --skip-plugins --skip-themes" >/dev/null 2>&1 && ok "cache flushed"
 ssh_prod "cd '${PROD_ROOT}' && wp litespeed-purge all --skip-themes" >/dev/null 2>&1 && ok "LiteSpeed purged" || true
 ssh_prod "cd '${PROD_ROOT}' && wp elementor flush-css --skip-themes" >/dev/null 2>&1 && ok "Elementor CSS regenerated" || true
+
+# ---------------------------------------------------------------------------
+# 10. Verify. A push that quietly loses data is worse than one that fails.
+# ---------------------------------------------------------------------------
+log "Verifying production"
+FAILED=0
+check() { # name expected actual
+  if [[ "$2" == "$3" ]]; then ok "$1: $3"; else warn "$1: expected $2, found $3"; FAILED=$((FAILED+1)); fi
+}
+PQ() { ssh_prod_q "cd '${PROD_ROOT}' && wp db query \"$1\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]+$|^https?://' | head -1; }
+
+check "job applications" "${JOBAPPS:-0}" "$(PQ "SELECT COUNT(*) FROM ${PREFIX}posts WHERE post_type='awsm_job_application';")"
+check "comments"         "${COMMENTS_BEFORE:-?}" "$(PQ "SELECT COUNT(*) FROM ${PREFIX}comments;")"
+check "users"            "${USERS_BEFORE:-?}"    "$(PQ "SELECT COUNT(*) FROM ${PREFIX}users;")"
+
+LIVE_CODE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 60 "${PROD_URL}/" || echo 000)"
+[[ "$LIVE_CODE" == "200" ]] && ok "live site HTTP 200" || { warn "live site returned HTTP ${LIVE_CODE}"; FAILED=$((FAILED+1)); }
+
+if [[ "$FAILED" -gt 0 ]]; then
+  die "Push finished but ${FAILED} check(s) failed. Backup: ${BACKUP_DIR}/database.sql.gz"
+fi
 
 log "Content push complete."
 log "Rollback if needed: ${BACKUP_DIR}/database.sql.gz"
