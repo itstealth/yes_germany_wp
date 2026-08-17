@@ -115,9 +115,23 @@ Set per environment (Settings → Environments):
 | `REMOTE_ROOT` | WordPress document root |
 | `REMOTE_BACKUP_DIR` | Backup path **outside** the web root |
 
-The `production` environment must have **required reviewers** configured. That
+The `production` environment should have **required reviewers** configured. That
 approval gate is the actual safety mechanism; the `DEPLOY` confirmation string
 only prevents accidental clicks.
+
+> **Not currently active.** Required reviewers on a *private* repository need
+> GitHub Pro, Team or Enterprise. On the Free plan the API rejects the rule:
+>
+> ```
+> 422 Please ensure the billing plan supports the required reviewers protection rule.
+> ```
+>
+> Until the plan is upgraded, production is protected only by being
+> `workflow_dispatch`-only, requiring the `DEPLOY` confirmation string, and by
+> who has permission to run workflows. There is no second-pair-of-eyes check.
+>
+> The workflow already declares `environment: production`, so the gate starts
+> working the moment the plan supports it — no code change required.
 
 ---
 
