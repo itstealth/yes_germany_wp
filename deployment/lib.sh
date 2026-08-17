@@ -97,7 +97,9 @@ remote() {
 # ---------------------------------------------------------------------------
 wp_remote() {
   if [[ "$USE_DOCKER" == "true" ]]; then
-    remote "cd '${STACK_DIR}' && docker compose exec -T --user www-data php wp $* --path=/var/www/html"
+    # WP-CLI is NOT present in the wordpress:*-fpm image, so it runs as a
+    # one-shot container from the dedicated wpcli service instead.
+    remote "cd '${STACK_DIR}' && docker compose run --rm -T wpcli wp $* --path=/var/www/html"
   else
     remote "cd '${REMOTE_ROOT}' && wp $*"
   fi

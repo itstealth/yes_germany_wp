@@ -86,6 +86,27 @@ services:
     networks:
       - yg_staging_net
 
+  # WP-CLI is not bundled in the wordpress:*-fpm image, so it gets its own
+  # service. Run as a one-shot rather than a long-lived container:
+  #   docker compose run --rm wpcli wp <command>
+  wpcli:
+    image: wordpress:cli-php8.2
+    container_name: yg_staging_wpcli
+    profiles: ["cli"]
+    depends_on:
+      db:
+        condition: service_healthy
+    user: "33:33"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: ${DB_NAME}
+      WORDPRESS_DB_USER: ${DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ${WP_ROOT:-./wordpress}:/var/www/html
+    networks:
+      - yg_staging_net
+
 volumes:
   db_data:
   nginx_cache:
