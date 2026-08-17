@@ -126,6 +126,7 @@ jobs:
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
           REMOTE_BACKUP_DIR: ${{ secrets.REMOTE_BACKUP_DIR }}
         run: bash deployment/backup.sh production
@@ -135,6 +136,7 @@ jobs:
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
         run: bash deployment/deploy.sh production
 
@@ -144,6 +146,7 @@ jobs:
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
         run: bash deployment/health-check.sh production https://www.yesgermany.com
 
@@ -152,6 +155,7 @@ jobs:
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
           BACKUP_STAMP: ${{ steps.backup.outputs.backup_stamp }}
         run: bash deployment/rollback.sh production
