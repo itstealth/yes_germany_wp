@@ -15,13 +15,21 @@
 #
 # What is deliberately NOT pushed, and why:
 #
-#   options        Holds siteurl, API keys, OAuth tokens and which plugins are
-#                  active. Copying it makes production believe it is staging.
-#                  Settings changes go through migrations/ instead.
-#   users          Staging's are scrambled; pushing them locks everyone out.
-#   comments       Written by real visitors on production.
-#   job apps       awsm_job_application posts are real applications.
-#   *_logs         Production's own request and activity history.
+# Plugin settings and plugin activation DO travel. The options table is pushed
+# row by row, minus a deliberately short blocklist — the only values that must
+# genuinely differ between two environments:
+#
+#   siteurl / home    production would otherwise believe it is staging
+#   *_api_key, *oauth, *credential, *license, *_token
+#                     domain-scoped; Google Site Kit in particular breaks
+#   cron, transients  environment-local scheduling and caches
+#
+# Still preserved on production, because staging cannot have them:
+#
+#   users          staging's are scrambled by harden-staging.sh
+#   comments       written by real visitors on the live site
+#   job apps       real applications, submitted to production
+#   *_logs         production's own request history
 #
 # Usage: push-content.sh [--dry-run]
 
@@ -256,12 +264,88 @@ if [[ "${JOBAPPS:-0}" -gt 0 ]]; then
   fi
 fi
 
-# Plugin state: staging has several deliberately disabled, production must not
-# inherit that.
-if [[ -n "$ACTIVE_PLUGINS_BEFORE" ]]; then
-  ssh_prod "cd '${PROD_ROOT}' && wp option update active_plugins '${ACTIVE_PLUGINS_BEFORE}' --format=json --skip-plugins --skip-themes" >/dev/null 2>&1 \
-    && ok "production plugin state preserved"
+# ---------------------------------------------------------------------------
+# 7b. Plugin settings and plugin activation.
+#
+# The whole options table travels, minus the short blocklist above. That is what
+# lets a plugin be installed and configured on staging and simply work on live.
+# ---------------------------------------------------------------------------
+log "Pushing plugin settings"
+
+OPT_SQL="$(mktemp)"
+ssh_stg "cd '${STG_DIR}' && set -a && . ./.env && set +a && \
+         docker compose exec -T db mysqldump -u root -p\"\$DB_ROOT_PASSWORD\" \
+           --single-transaction --quick --default-character-set=utf8mb4 \
+           --no-create-info --skip-add-locks --complete-insert \
+           \"\$DB_NAME\" ${PREFIX}options 2>/dev/null" > "$OPT_SQL" \
+  || die "Could not export options from staging."
+[[ -s "$OPT_SQL" ]] || die "Options export is empty — refusing to continue."
+sed -i "s|${STG_URL}|${PROD_URL}|g" "$OPT_SQL"
+
+# Load staging's options into a holding table, then copy across everything
+# except the values that must stay environment-specific.
+ssh_prod "cd '${PROD_ROOT}' && wp db query \"
+  DROP TABLE IF EXISTS ${PREFIX}_incoming_options;
+  CREATE TABLE ${PREFIX}_incoming_options LIKE ${PREFIX}options;\" --skip-plugins --skip-themes" >/dev/null 2>&1
+
+sed "s/INSERT INTO \`${PREFIX}options\`/INSERT INTO \`${PREFIX}_incoming_options\`/g" "$OPT_SQL" \
+  | ssh_prod "cd '${PROD_ROOT}' && wp db query" \
+  || die "Could not stage incoming options on production."
+rm -f "$OPT_SQL"
+
+# The blocklist. Everything not matched here is taken from staging.
+OPT_BLOCK="option_name IN ('siteurl','home','cron','active_plugins','recently_activated','_transient_doing_cron')
+  OR option_name LIKE '\_transient%' OR option_name LIKE '\_site\_transient%'
+  OR option_name LIKE '%api\_key%'   OR option_name LIKE '%apikey%'
+  OR option_name LIKE '%oauth%'      OR option_name LIKE '%credential%'
+  OR option_name LIKE '%license%'    OR option_name LIKE '%\_token%'
+  OR option_name LIKE 'googlesitekit%'"
+
+ssh_prod "cd '${PROD_ROOT}' && wp db query \"
+  -- update settings that already exist on production
+  UPDATE ${PREFIX}options o
+    INNER JOIN ${PREFIX}_incoming_options i ON i.option_name = o.option_name
+     SET o.option_value = i.option_value, o.autoload = i.autoload
+   WHERE NOT (${OPT_BLOCK});
+  -- add settings that are new (a newly installed plugin)
+  INSERT INTO ${PREFIX}options (option_name, option_value, autoload)
+    SELECT i.option_name, i.option_value, i.autoload
+      FROM ${PREFIX}_incoming_options i
+      LEFT JOIN ${PREFIX}options o ON o.option_name = i.option_name
+     WHERE o.option_id IS NULL AND NOT (${OPT_BLOCK});
+  \" --skip-plugins --skip-themes" >/dev/null 2>&1 \
+  && ok "plugin settings pushed" || warn "settings push had problems"
+
+# ---------------------------------------------------------------------------
+# Plugin activation: take staging's list, then force back on the plugins that
+# are only disabled on staging for safety. A plugin newly activated on staging
+# therefore goes live; the client's analytics and ad tracking stay on.
+# ---------------------------------------------------------------------------
+log "Reconciling active plugins"
+STG_ACTIVE="$(ssh_stg_q "cd '${STG_DIR}' && docker compose run --rm -T wpcli wp option get active_plugins --format=json --path=/var/www/html --skip-plugins --skip-themes 2>/dev/null" | tr -d '\r' | grep -E '^\[' | head -1)"
+
+if [[ -n "$STG_ACTIVE" ]]; then
+  ssh_prod "cd '${PROD_ROOT}' && wp option update active_plugins '${STG_ACTIVE}' --format=json --skip-plugins --skip-themes" >/dev/null 2>&1 \
+    && ok "activation state taken from staging"
+
+  for p in "${STAGING_DISABLED_PLUGINS[@]}"; do
+    ssh_prod "cd '${PROD_ROOT}' && wp plugin activate '${p}' --skip-plugins --skip-themes" >/dev/null 2>&1 \
+      && ok "re-enabled on production: ${p}" \
+      || warn "could not re-enable ${p} — check it manually"
+  done
+else
+  warn "could not read staging's plugin list; leaving production activation unchanged"
+  [[ -n "$ACTIVE_PLUGINS_BEFORE" ]] && ssh_prod "cd '${PROD_ROOT}' && wp option update active_plugins '${ACTIVE_PLUGINS_BEFORE}' --format=json --skip-plugins --skip-themes" >/dev/null 2>&1
 fi
+
+ssh_prod "cd '${PROD_ROOT}' && wp db query \"DROP TABLE IF EXISTS ${PREFIX}_incoming_options;\" --skip-plugins --skip-themes" >/dev/null 2>&1
+
+# Guard: production must never end up pointing at the staging hostname.
+LIVE_URL="$(ssh_prod_q "cd '${PROD_ROOT}' && wp option get siteurl --skip-plugins --skip-themes 2>/dev/null" | tr -d '\r' | grep -E '^https?://' | head -1)"
+if [[ "$LIVE_URL" == *"stealthlearn"* ]]; then
+  die "production siteurl is now '${LIVE_URL}' — restoring from ${BACKUP_DIR}/database.sql.gz is required IMMEDIATELY."
+fi
+ok "production siteurl intact: ${LIVE_URL}"
 
 # ---------------------------------------------------------------------------
 # 8. Media
