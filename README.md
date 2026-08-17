@@ -33,7 +33,7 @@ server's `.env`.
 | URL | `https://www.yesgermany.com` | `https://yg-staging.stealthlearn.in` |
 | Stack | LiteSpeed + PHP 8.2 | nginx + php-fpm 8.2 + MySQL 8 |
 | Database | `yesgermanycom_fdkf` (`wpb9_`) | `yg_staging` (`wpb9_`) |
-| Uploads | 3.5 GB on disk | Proxied read-only from production |
+| Uploads | 3.5 GB on disk | Own copy, 64,549 files |
 | Deploys | Manual approval required | Automatic on push to `main` |
 
 PHP is pinned to **8.2 on both sides**. Do not raise it: the site runs
@@ -67,18 +67,30 @@ checks, and rolls back automatically on failure.
 
 ---
 
-## The two rules that keep this safe
+## The rules that keep this safe
 
-**1. Code flows staging → production. Data never does.**
+**1. Staging is the only place anyone edits content.**
 
-The production database holds live leads, form submissions and user accounts
-that exist nowhere else. Overwriting it from staging would destroy them. No
-script in this repository pushes a database to production, and none should be
-added.
+Content pushes REPLACE production's content tables. If someone writes a post
+directly on production, the next push deletes it. `push-content.sh` compares the
+newest post on each side and refuses to run when production is ahead, but that
+guard is a safety net — the rule is the real protection.
 
-Deliberate database changes go through `migrations/`.
+**2. Content flows staging → production. Certain data never does.**
 
-**2. Rollback restores code, never content.**
+Pushed: posts, pages, Elementor designs, menus, categories, media, plugin
+settings and plugin activation.
+
+Never pushed, because staging cannot have them: users (staging's are scrambled),
+comments and job applications (submitted by real visitors to the live site), and
+a short blocklist inside the options table — `siteurl`/`home`, API keys, OAuth
+tokens and licences, which must differ between environments.
+
+Job applications live inside the `posts` table that gets replaced, so they are
+copied to holding tables first, restored afterwards, and the count is verified
+before those tables are dropped.
+
+**3. Rollback restores code, never content.**
 
 `rollback.sh` puts the previous release's files back and leaves the database
 untouched. Rolling the database back would discard every lead captured since
@@ -169,9 +181,16 @@ The must-use plugin `00-yg-environment.php` makes staging inert:
 - An **environment banner** in wp-admin, so nobody edits staging thinking it is
   live.
 
-Uploads are read through to production and cached locally. This is a plain HTTP
-`GET` for a static file; there is no path by which staging can write to the
-client's server. Media uploaded on staging stays local.
+Staging holds its own copy of the media library (64,549 files), so images
+uploaded there travel to production with the next content push. The media sync
+is additive (`--skip-old-files`), so a push can never delete existing production
+media.
+
+`harden-staging.sh` also disables nine plugins that would otherwise reach the
+client's live third-party accounts — Site Kit, MonsterInsights, Microsoft UET,
+AIOSEO IndexNow, OptinMonster, Broken Link Checker, LiteSpeed Cache and both
+header-injection plugins. Those must stay ACTIVE in production, so
+`push-content.sh` re-enables them there after every push.
 
 ---
 
