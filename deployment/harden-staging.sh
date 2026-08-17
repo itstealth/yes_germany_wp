@@ -84,7 +84,10 @@ done
 # ---------------------------------------------------------------------------
 # Keep search engines out, at the data layer as well as the header.
 # ---------------------------------------------------------------------------
-wp_remote option update blog_public 0 --skip-plugins --skip-themes >/dev/null 2>&1 \
+# SQL, not `wp option update`: the mu-plugin filters pre_option_blog_public to
+# 0, so update_option() sees no change and never writes.
+PREFIX_H="$(wp_remote config get table_prefix --skip-plugins --skip-themes 2>/dev/null | tr -d '\r\n')"
+db_query "UPDATE ${PREFIX_H}options SET option_value='0' WHERE option_name='blog_public';" >/dev/null 2>&1 \
   && ok "blog_public = 0"
 
 # Clear cron events inherited from production so nothing fires on a schedule.

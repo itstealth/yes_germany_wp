@@ -102,7 +102,10 @@ db_query "DELETE FROM ${PREFIX}comments WHERE comment_approved != '1';" >/dev/nu
 # 4. Neutralise anything that talks to the outside world
 # ---------------------------------------------------------------------------
 log "Disabling outbound integrations"
-wp_remote option update blog_public 0 --skip-plugins --skip-themes >/dev/null 2>&1 || true
+# Written with SQL, not `wp option update`. The mu-plugin filters
+# pre_option_blog_public to 0, so update_option() reads 0, sees "no change" and
+# skips the write — leaving 1 in the database forever.
+db_query "UPDATE ${PREFIX}options SET option_value='0' WHERE option_name='blog_public';" >/dev/null 2>&1 || true
 
 # Clear scheduled jobs inherited from production.
 wp_remote cron event delete --all >/dev/null 2>&1 || true

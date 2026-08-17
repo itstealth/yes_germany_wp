@@ -140,10 +140,10 @@ ok "target confirmed: production"
 # rule. Pushing would delete their work, so stop and make a human decide.
 # ---------------------------------------------------------------------------
 log "Checking whether production has newer content than staging"
-PROD_NEWEST="$(ssh_prod_q "cd '${PROD_ROOT}' && wp db query \"SELECT COALESCE(MAX(post_modified_gmt),'1970-01-01') FROM ${PREFIX}posts WHERE post_type NOT IN ('revision','awsm_job_application') AND post_status IN ('publish','draft','pending','private');\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)"
+PROD_NEWEST="$(ssh_prod_q "cd '${PROD_ROOT}' && wp db query \"SELECT COALESCE(MAX(post_modified),'1970-01-01') FROM ${PREFIX}posts WHERE post_type NOT IN ('revision','awsm_job_application') AND post_status IN ('publish','draft','pending','private');\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)"
 STG_NEWEST="$(ssh_stg_q "cd '${STG_DIR}' && set -a && . ./.env && set +a && \
   docker compose exec -T db mysql -u root -p\"\$DB_ROOT_PASSWORD\" -N \"\$DB_NAME\" -e \
-  \"SELECT COALESCE(MAX(post_modified_gmt),'1970-01-01') FROM ${PREFIX}posts WHERE post_type NOT IN ('revision','awsm_job_application') AND post_status IN ('publish','draft','pending','private');\" 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)"
+  \"SELECT COALESCE(MAX(post_modified),'1970-01-01') FROM ${PREFIX}posts WHERE post_type NOT IN ('revision','awsm_job_application') AND post_status IN ('publish','draft','pending','private');\" 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)"
 
 log "  production newest: ${PROD_NEWEST}"
 log "  staging newest:    ${STG_NEWEST}"
