@@ -106,6 +106,40 @@ wp_remote() {
 }
 
 # ---------------------------------------------------------------------------
+# Raw SQL against the target database.
+#
+# Deliberately NOT `wp db query`: that shells out to the mysql client binary,
+# and the wordpress:cli image ships the MariaDB client, which cannot
+# authenticate against MySQL 8's caching_sha2_password. On Docker targets we
+# talk to the mysql container directly, reading credentials from the
+# server-side .env — the only place they exist.
+# ---------------------------------------------------------------------------
+db_query() {
+  local sql="$1"
+  if [[ "$USE_DOCKER" == "true" ]]; then
+    remote "cd '${STACK_DIR}' && set -a && . ./.env && set +a && \
+            docker compose exec -T db mysql -u root -p\"\$DB_ROOT_PASSWORD\" -N \"\$DB_NAME\" -e '${sql}' 2>/dev/null"
+  else
+    remote "cd '${REMOTE_ROOT}' && wp db query \"${sql}\" --skip-column-names --skip-plugins --skip-themes"
+  fi
+}
+
+# Pipe a local SQL file into the target database.
+db_import_file() {
+  local file="$1"
+  if [[ "$USE_DOCKER" == "true" ]]; then
+    # shellcheck disable=SC2086
+    ssh $(ssh_opts) "${DEPLOY_USER}@${DEPLOY_HOST}" \
+      "cd '${STACK_DIR}' && set -a && . ./.env && set +a && \
+       docker compose exec -T db mysql -u root -p\"\$DB_ROOT_PASSWORD\" \"\$DB_NAME\"" < "$file"
+  else
+    # shellcheck disable=SC2086
+    ssh $(ssh_opts) "${DEPLOY_USER}@${DEPLOY_HOST}" \
+      "cd '${REMOTE_ROOT}' && wp db query" < "$file"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Preflight — confirm the target can take a deploy before changing anything
 # ---------------------------------------------------------------------------
 preflight() {

@@ -37,15 +37,15 @@ PREFIX="$(wp_remote config get table_prefix --skip-plugins --skip-themes 2>/dev/
 [[ -n "$PREFIX" ]] || die "Could not determine the table prefix."
 TABLE="${PREFIX}${TRACKING_TABLE}"
 
-wp_remote db query "\"CREATE TABLE IF NOT EXISTS ${TABLE} (
+db_query "CREATE TABLE IF NOT EXISTS ${TABLE} (
   id INT AUTO_INCREMENT PRIMARY KEY,
   filename VARCHAR(255) NOT NULL UNIQUE,
   checksum CHAR(64) NOT NULL,
   applied_at DATETIME NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;\"" >/dev/null \
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;" >/dev/null \
   || die "Could not create the migration tracking table."
 
-APPLIED="$(wp_remote db query "\"SELECT filename FROM ${TABLE};\"" --skip-column-names 2>/dev/null | tr -d '\r' || true)"
+APPLIED="$(db_query "SELECT filename FROM ${TABLE};" 2>/dev/null | tr -d '\r' || true)"
 
 # ---------------------------------------------------------------------------
 # Apply, in order
@@ -62,22 +62,13 @@ for file in $(find "$MIGRATIONS_DIR" -maxdepth 1 -name '*.sql' | sort); do
   sum="$(sha256sum "$file" | cut -d' ' -f1)"
   log "Applying ${name}"
 
-  # Pipe the file into WP-CLI rather than inlining it, so quoting in the SQL
-  # cannot be mangled by the shell.
-  if [[ "$USE_DOCKER" == "true" ]]; then
-    # shellcheck disable=SC2086
-    ssh $(ssh_opts) "${DEPLOY_USER}@${DEPLOY_HOST}" \
-      "cd '${STACK_DIR}' && docker compose exec -T --user www-data php wp db query --path=/var/www/html" \
-      < "$file" || die "Migration ${name} failed. Database left as-is; fix and re-run."
-  else
-    # shellcheck disable=SC2086
-    ssh $(ssh_opts) "${DEPLOY_USER}@${DEPLOY_HOST}" \
-      "cd '${REMOTE_ROOT}' && wp db query" < "$file" \
-      || die "Migration ${name} failed. Database left as-is; fix and re-run."
-  fi
+  # Pipe the file in rather than inlining it, so quoting in the SQL cannot be
+  # mangled by the shell.
+  db_import_file "$file" \
+    || die "Migration ${name} failed. Database left as-is; fix and re-run."
 
-  wp_remote db query "\"INSERT INTO ${TABLE} (filename, checksum, applied_at)
-                       VALUES ('${name}', '${sum}', UTC_TIMESTAMP());\"" >/dev/null \
+  db_query "INSERT INTO ${TABLE} (filename, checksum, applied_at)
+            VALUES (\"${name}\", \"${sum}\", UTC_TIMESTAMP());" >/dev/null \
     || warn "Applied ${name} but could not record it — re-running may duplicate it."
 
   ok "applied ${name}"

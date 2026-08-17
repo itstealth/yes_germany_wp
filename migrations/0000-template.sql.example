@@ -1,0 +1,29 @@
+-- Copy this file to start a new migration.
+--
+--   cp migrations/0000-template.sql.example migrations/0001-what-it-does.sql
+--
+-- Rename it: four digits, a dash, a short lower-case description.
+-- Only files ending in .sql are run — this .example file is ignored.
+
+-- WHAT THIS CHANGES:  (one line, so a reviewer knows without reading the SQL)
+-- WHY:                (why it cannot just be done in wp-admin)
+-- TESTED ON STAGING:  yes / no
+
+
+-- Write it so running it twice is harmless. Prefer this shape for inserts:
+--
+--   INSERT INTO wpb9_options (option_name, option_value, autoload)
+--   SELECT 'my_option', 'my_value', 'no'
+--    WHERE NOT EXISTS (
+--      SELECT 1 FROM wpb9_options WHERE option_name = 'my_option'
+--    );
+--
+-- and always scope deletes and updates:
+--
+--   UPDATE wpb9_options
+--      SET option_value = 'new value'
+--    WHERE option_name = 'exact_option_name';
+--
+-- Do NOT hand-edit values that begin with a: or O: — those are serialised PHP
+-- and contain string lengths. Changing the text without the length silently
+-- breaks the setting. Use WP-CLI for those; see README.md.
