@@ -8,7 +8,7 @@ name: Push content to production
 #
 # This workflow REPLACES production's content tables. It depends on staging being
 # the only place anyone edits content; see migrations/README.md and the guard in
-# deployment/push-content.sh.
+# deployment/push-fast.sh.
 
 on:
   workflow_dispatch:
@@ -119,6 +119,8 @@ jobs:
           STAGING_HOST: ${{ secrets.DEPLOY_HOST }}
           STAGING_USER: ${{ secrets.DEPLOY_USER }}
           STAGING_PORT: ${{ secrets.DEPLOY_PORT }}
+          STAGING_SSH_KEY_FILE: /home/runner/.ssh/deploy_key
+          PROD_SSH_KEY_FILE: /home/runner/.ssh/prod_deploy_key
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_USER: ${{ secrets.PROD_USER }}
           PROD_ROOT: ${{ secrets.PROD_ROOT }}
@@ -126,9 +128,9 @@ jobs:
           FORCE_PUSH: ${{ inputs.force }}
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            bash deployment/push-content.sh --dry-run
+            bash deployment/push-fast.sh --dry-run
           else
-            bash deployment/push-content.sh
+            bash deployment/push-fast.sh
           fi
 
       - name: Verify the live site still works
