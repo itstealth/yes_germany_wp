@@ -58,18 +58,18 @@ log "Scrambling user emails and passwords"
 PREFIX="$(wp_remote config get table_prefix --skip-plugins --skip-themes 2>/dev/null | tr -d '\r\n')"
 [[ -n "$PREFIX" ]] || die "Could not determine table prefix."
 
-wp_remote db query "\"UPDATE ${PREFIX}users
+db_query "UPDATE ${PREFIX}users
   SET user_email = CONCAT('user', ID, '@invalid.local'),
       user_pass  = CONCAT('!disabled!', MD5(RAND()), ID),
       user_url   = ''
-  WHERE user_login NOT IN ('yg_staging');\"" >/dev/null \
+  WHERE user_login NOT IN ('yg_staging');" >/dev/null \
   || die "Failed to scramble users."
 ok "user emails and passwords scrambled"
 
 # Contact details stored in usermeta.
-wp_remote db query "\"DELETE FROM ${PREFIX}usermeta
+db_query "DELETE FROM ${PREFIX}usermeta
   WHERE meta_key IN ('billing_email','billing_phone','billing_address_1','billing_address_2',
-                     'shipping_address_1','shipping_address_2','phone','mobile');\"" >/dev/null 2>&1 || true
+                     'shipping_address_1','shipping_address_2','phone','mobile');" >/dev/null 2>&1 || true
 ok "contact metadata removed"
 
 # ---------------------------------------------------------------------------
@@ -81,21 +81,21 @@ ok "contact metadata removed"
 log "Dropping form submissions and applications"
 for t in e_submissions e_submissions_values e_submissions_actions_log \
          sgpb_subscribers db7_forms wpforms_db frmt_form_entry frmt_form_entry_meta; do
-  wp_remote db query "\"TRUNCATE TABLE ${PREFIX}${t};\"" >/dev/null 2>&1 \
+  db_query "TRUNCATE TABLE ${PREFIX}${t};" >/dev/null 2>&1 \
     && ok "cleared ${PREFIX}${t}" || true
 done
 
 # WP Job Openings applicants are a custom post type.
-wp_remote db query "\"DELETE pm FROM ${PREFIX}postmeta pm
+db_query "DELETE pm FROM ${PREFIX}postmeta pm
   INNER JOIN ${PREFIX}posts p ON p.ID = pm.post_id
-  WHERE p.post_type = 'awsm_job_application';\"" >/dev/null 2>&1 || true
-wp_remote db query "\"DELETE FROM ${PREFIX}posts WHERE post_type = 'awsm_job_application';\"" >/dev/null 2>&1 \
+  WHERE p.post_type = 'awsm_job_application';" >/dev/null 2>&1 || true
+db_query "DELETE FROM ${PREFIX}posts WHERE post_type = 'awsm_job_application';" >/dev/null 2>&1 \
   && ok "job applications removed" || true
 
 # Unapproved comment backlog is mostly spam carrying email addresses.
-wp_remote db query "\"DELETE FROM ${PREFIX}commentmeta WHERE comment_id IN
-  (SELECT comment_ID FROM ${PREFIX}comments WHERE comment_approved != '1');\"" >/dev/null 2>&1 || true
-wp_remote db query "\"DELETE FROM ${PREFIX}comments WHERE comment_approved != '1';\"" >/dev/null 2>&1 \
+db_query "DELETE FROM ${PREFIX}commentmeta WHERE comment_id IN
+  (SELECT comment_ID FROM ${PREFIX}comments WHERE comment_approved != '1');" >/dev/null 2>&1 || true
+db_query "DELETE FROM ${PREFIX}comments WHERE comment_approved != '1';" >/dev/null 2>&1 \
   && ok "unapproved comments removed" || true
 
 # ---------------------------------------------------------------------------
@@ -126,7 +126,7 @@ fi
 # 6. Report what remains
 # ---------------------------------------------------------------------------
 log "Verification"
-REAL_EMAILS="$(wp_remote db query "\"SELECT COUNT(*) FROM ${PREFIX}users WHERE user_email NOT LIKE '%@invalid.local';\"" --skip-column-names 2>/dev/null | tr -d '\r\n ' || echo '?')"
+REAL_EMAILS="$(db_query "SELECT COUNT(*) FROM ${PREFIX}users WHERE user_email NOT LIKE '%@invalid.local';" 2>/dev/null | tr -d '\r\n ' || echo '?')"
 if [[ "$REAL_EMAILS" == "0" ]]; then
   ok "no real email addresses remain"
 else

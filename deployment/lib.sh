@@ -43,7 +43,10 @@ configure_environment() {
   case "$ENVIRONMENT" in
     staging)
       DEPLOY_HOST="${DEPLOY_HOST:-100.66.61.11}"
-      DEPLOY_USER="${DEPLOY_USER:-root}"
+      # Not root, and not port 22: Tailscale SSH intercepts tailnet port 22 and
+      # ignores SSH keys. See README.
+      DEPLOY_USER="${DEPLOY_USER:-ygdeploy}"
+      DEPLOY_PORT="${DEPLOY_PORT:-2222}"
       STACK_DIR="${STACK_DIR:-/opt/yesgermany/staging}"
       REMOTE_ROOT="${REMOTE_ROOT:-${STACK_DIR}/wordpress}"
       REMOTE_BACKUP_DIR="${REMOTE_BACKUP_DIR:-/opt/yesgermany/backups/staging}"
@@ -116,11 +119,15 @@ wp_remote() {
 # ---------------------------------------------------------------------------
 db_query() {
   local sql="$1"
+  # The SQL is piped in rather than passed with -e "...". Nearly every statement
+  # here contains single quotes ('user', '@invalid.local'), which terminate a
+  # single-quoted shell argument and silently truncate the query. Piping avoids
+  # the whole quoting problem.
   if [[ "$USE_DOCKER" == "true" ]]; then
-    remote "cd '${STACK_DIR}' && set -a && . ./.env && set +a && \
-            docker compose exec -T db mysql -u root -p\"\$DB_ROOT_PASSWORD\" -N \"\$DB_NAME\" -e '${sql}' 2>/dev/null"
+    printf '%s\n' "$sql" | remote "cd '${STACK_DIR}' && set -a && . ./.env && set +a && \
+      docker compose exec -T db mysql -u root -p\"\$DB_ROOT_PASSWORD\" -N \"\$DB_NAME\" 2>/dev/null"
   else
-    remote "cd '${REMOTE_ROOT}' && wp db query \"${sql}\" --skip-column-names --skip-plugins --skip-themes"
+    printf '%s\n' "$sql" | remote "cd '${REMOTE_ROOT}' && wp db query --skip-column-names --skip-plugins --skip-themes"
   fi
 }
 
