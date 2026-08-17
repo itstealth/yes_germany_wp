@@ -1,0 +1,119 @@
+name: Deploy to production
+
+# Production is never automatic. It is triggered by hand and gated behind the
+# "production" GitHub Environment, which must have required reviewers set —
+# that approval gate is what makes this safe, not anything in this file.
+#
+# Code only. The production database is never overwritten from staging: it holds
+# live leads, form submissions and user accounts that exist nowhere else.
+# Deliberate schema or content changes go through deployment/migrate.sh.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY to confirm a production release'
+        required: true
+        default: ''
+      skip_health_check:
+        description: 'Skip post-deploy health check (not recommended)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Confirm intent
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require explicit confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "DEPLOY" ]; then
+            echo "::error::Type DEPLOY to confirm. Got: '${{ github.event.inputs.confirm }}'"
+            exit 1
+          fi
+
+  ci:
+    needs: guard
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy
+    needs: [guard, ci]
+    runs-on: ubuntu-latest
+    # Approval gate. Configure required reviewers on this environment.
+    environment:
+      name: production
+      url: https://www.yesgermany.com
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Back up database and current release
+        id: backup
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
+          REMOTE_BACKUP_DIR: ${{ secrets.REMOTE_BACKUP_DIR }}
+        run: bash deployment/backup.sh production
+
+      - name: Deploy managed paths
+        id: deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
+        run: bash deployment/deploy.sh production
+
+      - name: Health check
+        id: health
+        if: ${{ !inputs.skip_health_check }}
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
+        run: bash deployment/health-check.sh production https://www.yesgermany.com
+
+      - name: Roll back on failure
+        if: failure()
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
+          BACKUP_STAMP: ${{ steps.backup.outputs.backup_stamp }}
+        run: bash deployment/rollback.sh production
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Production deploy"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`${GITHUB_SHA:0:7}\` |"
+            echo "| Approved by | ${{ github.actor }} |"
+            echo "| Backup | \`${{ steps.backup.outputs.backup_stamp }}\` |"
+            echo "| Result | ${{ job.status }} |"
+            echo ""
+            echo "Database was not modified. Rollback restores code only."
+          } >> "$GITHUB_STEP_SUMMARY"

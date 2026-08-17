@@ -1,0 +1,115 @@
+name: CI
+
+# Runs on every push and PR. Nothing reaches a server until this passes.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: PHP lint and standards
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up PHP
+        # 8.2 matches production. Building against a newer runtime than the
+        # server runs would let incompatible syntax through.
+        uses: shivammathur/setup-php@2e947f1f6932d141d076ca441d0e1e881775e95b # v2.31.1
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+          coverage: none
+
+      - name: Syntax check every PHP file
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS= read -r -d '' f; do
+            if ! php -l "$f" > /dev/null 2>&1; then
+              echo "::error file=$f::PHP syntax error"
+              php -l "$f" || true
+              fail=1
+            fi
+          done < <(find wp-content -name '*.php' -print0)
+          exit $fail
+
+      - name: Validate composer.json
+        run: |
+          if [ -f composer.json ]; then
+            composer validate --strict --no-check-publish
+          else
+            echo "No composer.json yet — skipping."
+          fi
+
+  security:
+    name: Secret and permission checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Fail if secrets or dumps were committed
+        run: |
+          set -euo pipefail
+          bad=0
+          # wp-config.php, .env, keys and SQL dumps must never be tracked.
+          if git ls-files | grep -E '(^|/)wp-config\.php$|(^|/)\.env$|\.pem$|\.key$|(^|/)id_(rsa|ed25519)$|\.sql(\.gz)?$' ; then
+            echo "::error::Secret or database dump is tracked in Git."
+            bad=1
+          fi
+          # Credential-looking literals in PHP.
+          if grep -rInE "(DB_PASSWORD|AUTH_KEY|SECURE_AUTH_KEY)\s*['\"]?\s*,\s*['\"][^'\"]{8,}" \
+               --include='*.php' wp-content 2>/dev/null; then
+            echo "::error::Hard-coded credential found."
+            bad=1
+          fi
+          exit $bad
+
+      - name: Fail on world-writable files
+        run: |
+          set -euo pipefail
+          if find . -path ./.git -prune -o -type f -perm -002 -print | grep . ; then
+            echo "::error::World-writable (777/666) files are not allowed."
+            exit 1
+          fi
+          echo "No world-writable files."
+
+  theme:
+    name: Child theme integrity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Child theme declares its parent
+        run: |
+          set -euo pipefail
+          style=wp-content/themes/zakra-child/style.css
+          test -f "$style" || { echo "::error::Child stylesheet missing."; exit 1; }
+          grep -q '^Template:[[:space:]]*zakra' "$style" \
+            || { echo "::error::style.css must declare 'Template: zakra'."; exit 1; }
+          echo "Child theme correctly declares parent 'zakra'."
+
+      - name: Environment-gated code must stay gated
+        # These two modules write to live systems (GA4/Google Ads and the CRM).
+        # If the production guard is ever dropped, staging starts polluting them.
+        run: |
+          set -euo pipefail
+          for f in analytics lead-capture; do
+            path="wp-content/themes/zakra-child/inc/${f}.php"
+            grep -q 'yg_is_production' "$path" \
+              || { echo "::error file=$path::lost its production guard."; exit 1; }
+          done
+          echo "Analytics and lead capture are still production-gated."
