@@ -22,6 +22,8 @@ on:
 
 permissions:
   contents: read
+  # Required by the approval gate, which opens an issue and waits for a comment.
+  issues: write
 
 concurrency:
   group: deploy-production
@@ -52,6 +54,41 @@ jobs:
       name: production
       url: https://www.yesgermany.com
     steps:
+      # ----------------------------------------------------------------------
+      # Human approval gate.
+      #
+      # Native GitHub Environment "required reviewers" is the better mechanism,
+      # but it needs GitHub Pro or above on a private repository. This achieves
+      # the same second-pair-of-eyes check on the Free plan: it opens an issue
+      # and blocks here until an approver comments.
+      #
+      # Weaker than the native gate in one respect — it lives in the workflow,
+      # so anyone with write access could remove it — whereas the native rule
+      # lives in repository settings. Once the plan supports it, delete this
+      # step; `environment: production` below already declares the real gate.
+      # ----------------------------------------------------------------------
+      - name: Await human approval
+        uses: trstringer/manual-approval@662b3ddbc7685f897992051e87e1b4b58c07dc03 # v1.9.1
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: ${{ vars.PRODUCTION_APPROVERS || 'itstealth' }}
+          minimum-approvals: 1
+          issue-title: "Approve production deploy: ${{ github.sha }}"
+          issue-body: |
+            A production deploy to **www.yesgermany.com** is waiting.
+
+            | | |
+            |---|---|
+            | Commit | `${{ github.sha }}` |
+            | Requested by | @${{ github.actor }} |
+            | Run | [#${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+
+            Before approving, confirm the change was verified on
+            https://yg-staging.stealthlearn.in
+
+            Comment **approved** to proceed, or **denied** to cancel.
+          exclude-workflow-initiator-as-approver: false
+
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
