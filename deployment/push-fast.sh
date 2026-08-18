@@ -43,6 +43,19 @@ SSHB="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o Serv
 stg()  { ssh -n -i "$STG_KEY"  -p "$STG_PORT" $SSHB "${STG_USER}@${STG_HOST}"  "$@"; }
 prod() { ssh -n -i "$PROD_KEY" $SSHB "${PROD_USER}@${PROD_HOST}" "$@"; }
 
+# SQL on stdin, tab-separated rows on stdout. Piping the statement in avoids the
+# quoting minefield of embedding it in an -e argument: SQL containing single
+# quotes silently truncated the statement when it was passed that way.
+stg_sql() {
+  ssh -i "$STG_KEY" -p "$STG_PORT" $SSHB "${STG_USER}@${STG_HOST}" \
+    "cd '${STG_DIR}' && set -a && . ./.env && set +a && \
+     docker compose exec -T db mysql -u root -p\"\$DB_ROOT_PASSWORD\" -N --batch \"\$DB_NAME\"" 2>/dev/null
+}
+prod_sql() {
+  ssh -i "$PROD_KEY" $SSHB "${PROD_USER}@${PROD_HOST}" \
+    "cd '${PROD_ROOT}' && wp db query --skip-column-names --skip-plugins --skip-themes" 2>/dev/null
+}
+
 [[ -f "$STG_KEY"  ]] || die "staging key missing: ${STG_KEY}"
 [[ -f "$PROD_KEY" ]] || die "production key missing: ${PROD_KEY}"
 
@@ -78,7 +91,11 @@ ok "target is production"
 # looked like a conflict.
 # ---------------------------------------------------------------------------
 WATERMARK="$(prod "cd '${PROD_ROOT}' && wp option get yg_last_push --skip-plugins --skip-themes 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]{4}-' | head -1 || true)"
-PROD_NEWEST="$(prod "cd '${PROD_ROOT}' && wp db query \"SELECT MAX(post_modified) FROM ${PREFIX}posts WHERE post_type NOT IN ('revision','awsm_job_application') AND post_status NOT IN ('auto-draft','inherit','trash');\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]{4}-' | head -1)"
+# post_modified_gmt, not post_modified: the watermark is written with `date -u`,
+# so comparing it against a site-local timestamp only works while the site is set
+# to UTC. Both sites are today, but setting the WordPress timezone to IST would
+# push every local timestamp 5.5h ahead of the watermark and block every publish.
+PROD_NEWEST="$(prod "cd '${PROD_ROOT}' && wp db query \"SELECT MAX(post_modified_gmt) FROM ${PREFIX}posts WHERE post_type NOT IN ('revision','awsm_job_application') AND post_status NOT IN ('auto-draft','inherit','trash');\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]{4}-' | head -1)"
 
 if [[ -n "$WATERMARK" ]]; then
   log "  last publish:      ${WATERMARK}"
@@ -95,6 +112,37 @@ if [[ -n "$WATERMARK" ]]; then
   fi
 else
   warn "no watermark yet — this is the first publish"
+fi
+
+# ---------------------------------------------------------------------------
+# 2b. What is this publish actually carrying?
+#
+# Without this the push reports success while saying nothing about its contents,
+# so "my change didn't go live" is indistinguishable from "my change was no
+# longer on staging when the push ran". That happened: an edit to the homepage
+# headline was saved, then overwritten on staging by a later save four minutes
+# before the push. The push was correct; there was simply nothing to carry. The
+# operator had no way to see that.
+#
+# Read this list before approving. If the page you edited is not in it, staging
+# does not hold your change — re-check it in the editor rather than re-pushing.
+# ---------------------------------------------------------------------------
+SINCE="${WATERMARK:-1970-01-01 00:00:00}"
+MANIFEST="$(printf "SELECT p.ID, p.post_type, p.post_status, p.post_modified_gmt, LEFT(p.post_title,52)
+  FROM %sposts p
+  WHERE p.post_modified_gmt > '%s'
+    AND p.post_type NOT IN ('revision','awsm_job_application')
+    AND p.post_status NOT IN ('auto-draft','inherit','trash')
+  ORDER BY p.post_modified_gmt DESC LIMIT 60;\n" "$PREFIX" "$SINCE" | stg_sql | tr -d '\r' || true)"
+
+CHANGED_IDS="$(printf '%s\n' "$MANIFEST" | awk -F'\t' 'NF>1 && $1 ~ /^[0-9]+$/ {print $1}')"
+CHANGED_N="$(printf '%s\n' "$CHANGED_IDS" | grep -c . || true)"
+
+if [[ "${CHANGED_N:-0}" -eq 0 ]]; then
+  warn "staging has no content changes since ${SINCE} — this publish would carry nothing new"
+else
+  log "Publishing ${CHANGED_N} changed item(s) since ${SINCE}:"
+  printf '%s\n' "$MANIFEST" | awk -F'\t' 'NF>1 {printf "      %-8s %-12s %-9s %s  %s\n", $1, $2, $3, $4, $5}'
 fi
 
 $DRY_RUN && { log "Dry run complete."; exit 0; }
@@ -202,6 +250,45 @@ LIVE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 60 "${PROD_URL}/" || 
 SURL="$(prod "cd '${PROD_ROOT}' && wp option get siteurl --skip-plugins --skip-themes 2>/dev/null" | tr -d '\r' | grep -E '^https?' | head -1)"
 [[ "$SURL" == *stealthlearn* ]] && die "production siteurl is '${SURL}' — RESTORE NOW from ${BDIR}/database.sql.gz"
 ok "siteurl intact: ${SURL}"
+
+# ---------------------------------------------------------------------------
+# 7b. Prove the changed items actually match on both sides.
+#
+# The checks above prove the site is up and nothing was destroyed. They do not
+# prove the edit travelled. This fingerprints every item in the manifest on both
+# servers — title, status, content and the Elementor design — and compares them.
+# A mismatch here means the publish did not land; equal fingerprints are proof
+# that it did.
+# ---------------------------------------------------------------------------
+if [[ "${CHANGED_N:-0}" -gt 0 ]]; then
+  log "Comparing published content"
+  ID_LIST="$(printf '%s\n' "$CHANGED_IDS" | paste -sd, -)"
+  # The two sides are meant to differ by domain — the dump rewrites staging URLs
+  # to production ones on the way over. Both hostnames collapse to the same token
+  # before hashing, so only real content differences show up. Without this every
+  # page carrying a link mismatches and the check is pure noise.
+  FP_SQL="$(printf "SELECT p.ID, MD5(CONCAT_WS('|', p.post_title, p.post_status,
+      REPLACE(REPLACE(p.post_content,'%s','@'),'%s','@'),
+      REPLACE(REPLACE(IFNULL((SELECT m.meta_value FROM %spostmeta m
+        WHERE m.post_id=p.ID AND m.meta_key='_elementor_data'),''),'%s','@'),'%s','@')))
+    FROM %sposts p WHERE p.ID IN (%s) ORDER BY p.ID;\n" \
+    "$STG_URL" "$PROD_URL" "$PREFIX" "$STG_URL" "$PROD_URL" "$PREFIX" "$ID_LIST")"
+
+  # wp db query emits a trailing blank line; keep only real rows or comm reports
+  # a phantom difference.
+  printf '%s' "$FP_SQL" | stg_sql  | tr -d '\r' | grep -E '^[0-9]+' | sort > "${TMPDIR:-/tmp}/yg-fp-stg.$$"  || true
+  printf '%s' "$FP_SQL" | prod_sql | tr -d '\r' | grep -E '^[0-9]+' | sort > "${TMPDIR:-/tmp}/yg-fp-prod.$$" || true
+
+  MISMATCH="$(comm -23 "${TMPDIR:-/tmp}/yg-fp-stg.$$" "${TMPDIR:-/tmp}/yg-fp-prod.$$" | awk '{print $1}' | paste -sd' ' -)"
+  rm -f "${TMPDIR:-/tmp}/yg-fp-stg.$$" "${TMPDIR:-/tmp}/yg-fp-prod.$$"
+
+  if [[ -z "${MISMATCH// /}" ]]; then
+    ok "all ${CHANGED_N} changed item(s) match production exactly"
+  else
+    warn "these item(s) differ between staging and production: ${MISMATCH}"
+    FAILED=$((FAILED+1))
+  fi
+fi
 
 [[ "$FAILED" -gt 0 ]] && die "Published, but ${FAILED} check(s) failed. Backup: ${BDIR}/database.sql.gz"
 

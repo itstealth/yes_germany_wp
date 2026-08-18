@@ -58,34 +58,6 @@ jobs:
       name: production
       url: https://www.yesgermany.com
     steps:
-      # A dry run changes nothing, so it does not need a human gate. A real push
-      # does.
-      - name: Await human approval
-        if: ${{ !inputs.dry_run }}
-        uses: trstringer/manual-approval@662b3ddbc7685f897992051e87e1b4b58c07dc03 # v1.9.1
-        with:
-          secret: ${{ github.TOKEN }}
-          approvers: ${{ vars.PRODUCTION_APPROVERS || 'itstealth' }}
-          minimum-approvals: 1
-          issue-title: "Approve CONTENT push to www.yesgermany.com"
-          issue-body: |
-            Publishing staging content to the **live site**.
-
-            | | |
-            |---|---|
-            | Requested by | @${{ github.actor }} |
-            | Force | `${{ inputs.force }}` |
-            | Run | [#${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
-
-            This replaces production's content tables with staging's. Before
-            approving, confirm the change looks right on
-            https://yg-staging.stealthlearn.in
-
-            Production's database is backed up first. Users, comments, job
-            applications and API credentials are preserved.
-
-            Comment **approved** to publish, or **denied** to cancel.
-
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -114,7 +86,11 @@ jobs:
           { printf '%s\n' "$STAGING_KNOWN_HOSTS"; printf '%s\n' "$PROD_KNOWN_HOSTS"; } > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Push content
+      # Runs before the approval gate so the approver can see the actual list of
+      # pages being published, rather than approving a blank cheque. A dry run
+      # writes nothing.
+      - name: Preview what will publish
+        id: preview
         env:
           STAGING_HOST: ${{ secrets.DEPLOY_HOST }}
           STAGING_USER: ${{ secrets.DEPLOY_USER }}
@@ -127,11 +103,72 @@ jobs:
           PROD_BACKUP_DIR: ${{ secrets.PROD_BACKUP_DIR }}
           FORCE_PUSH: ${{ inputs.force }}
         run: |
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            bash deployment/push-fast.sh --dry-run
-          else
-            bash deployment/push-fast.sh
-          fi
+          set -o pipefail
+          bash deployment/push-fast.sh --dry-run 2>&1 | tee /tmp/preview.txt
+          # Strip ANSI colour so the text is readable inside a GitHub issue.
+          sed -e 's/\x1b\[[0-9;]*m//g' /tmp/preview.txt > /tmp/preview.clean
+          sed -n '/changed item(s) since\|no content changes since/,$p' /tmp/preview.clean \
+            | grep -v 'Dry run complete' | head -70 > /tmp/manifest.txt
+          [ -s /tmp/manifest.txt ] || echo "(could not read the change list from staging — check the log above)" > /tmp/manifest.txt
+          {
+            echo 'manifest<<PREVIEW_EOF'
+            cat /tmp/manifest.txt
+            echo 'PREVIEW_EOF'
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### What this publish will carry"
+            echo ''
+            echo '```'
+            cat /tmp/manifest.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Await human approval
+        if: ${{ !inputs.dry_run }}
+        uses: trstringer/manual-approval@662b3ddbc7685f897992051e87e1b4b58c07dc03 # v1.9.1
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: ${{ vars.PRODUCTION_APPROVERS || 'itstealth' }}
+          minimum-approvals: 1
+          issue-title: "Approve CONTENT push to www.yesgermany.com"
+          issue-body: |
+            Publishing staging content to the **live site**.
+
+            | | |
+            |---|---|
+            | Requested by | @${{ github.actor }} |
+            | Force | `${{ inputs.force }}` |
+            | Run | [#${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+
+            **Staging says these items changed since the last publish:**
+
+            ```
+            ${{ steps.preview.outputs.manifest }}
+            ```
+
+            If the page you edited is **not** in that list, staging does not hold
+            your change — check it in the editor and save again. Approving will
+            publish the list above and nothing else.
+
+            Production's database is backed up first. Users, comments, job
+            applications and API credentials are preserved.
+
+            Comment **approved** to publish, or **denied** to cancel.
+
+      - name: Push content
+        if: ${{ !inputs.dry_run }}
+        env:
+          STAGING_HOST: ${{ secrets.DEPLOY_HOST }}
+          STAGING_USER: ${{ secrets.DEPLOY_USER }}
+          STAGING_PORT: ${{ secrets.DEPLOY_PORT }}
+          STAGING_SSH_KEY_FILE: /home/runner/.ssh/deploy_key
+          PROD_SSH_KEY_FILE: /home/runner/.ssh/prod_deploy_key
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_ROOT: ${{ secrets.PROD_ROOT }}
+          PROD_BACKUP_DIR: ${{ secrets.PROD_BACKUP_DIR }}
+          FORCE_PUSH: ${{ inputs.force }}
+        run: bash deployment/push-fast.sh
 
       - name: Verify the live site still works
         if: ${{ !inputs.dry_run }}
