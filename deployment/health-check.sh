@@ -36,6 +36,21 @@ fi
 
 log "Health check: ${ENVIRONMENT} (${BASE_URL})"
 
+# Production must be indexable. The content push carried staging's
+# blog_public=0 onto the live site twice before the options table was excluded,
+# deindexing it for ~11 hours and then ~37 minutes. Nobody noticed from the
+# inside; the client spotted the ticked box in wp-admin.
+if [[ "$ENVIRONMENT" == "production" ]]; then
+  BP="$(wp_remote "option get blog_public --skip-plugins --skip-themes" 2>/dev/null | tr -dc '0-9' | head -c1)"
+  if [[ "$BP" == "0" ]]; then
+    fail "SEARCH ENGINES ARE BLOCKED (blog_public=0) — fix: wp option update blog_public 1"
+  elif [[ "$BP" == "1" ]]; then
+    printf '\033[0;32m  ✓\033[0m %s\n' "search engines allowed (blog_public=1)"
+  else
+    fail "blog_public reads '${BP:-unset}', expected 1"
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 # 1. Homepage responds and looks like WordPress
 # ---------------------------------------------------------------------------

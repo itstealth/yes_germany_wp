@@ -388,8 +388,9 @@ FAILED=0
 V="$(printf "SELECT CONCAT('jobapps=',(SELECT COUNT(*) FROM %sposts WHERE post_type='awsm_job_application'));
 SELECT CONCAT('comments=',(SELECT COUNT(*) FROM %scomments));
 SELECT CONCAT('users=',(SELECT COUNT(*) FROM %susers));
-SELECT CONCAT('siteurl=',(SELECT option_value FROM %soptions WHERE option_name='siteurl'));\n" \
-  "$PREFIX" "$PREFIX" "$PREFIX" "$PREFIX" | prod_sql | tr -d '\r' || true)"
+SELECT CONCAT('siteurl=',(SELECT option_value FROM %soptions WHERE option_name='siteurl'));
+SELECT CONCAT('blog_public=',(SELECT option_value FROM %soptions WHERE option_name='blog_public'));\n" \
+  "$PREFIX" "$PREFIX" "$PREFIX" "$PREFIX" "$PREFIX" | prod_sql | tr -d '\r' || true)"
 
 field() { printf '%s\n' "$V" | grep -m1 "^$1=" | cut -d= -f2-; }
 for name in jobapps comments users; do
@@ -403,6 +404,26 @@ LIVE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "${PROD_URL}/" || 
 SURL="$(field siteurl)"
 [[ "$SURL" == *stealthlearn* ]] && die "production siteurl is '${SURL}' — RUN rollback-content.sh NOW"
 [[ -n "$SURL" ]] && ok "siteurl intact: ${SURL}" || { warn "could not read siteurl"; FAILED=$((FAILED+1)); }
+
+# blog_public=0 is "Discourage search engines from indexing this site".
+#
+# Staging sets it to 0 on purpose (harden-staging.sh) so a full copy of the
+# client's site never gets indexed at the staging URL. While the push still
+# carried the options table, it copied that 0 onto production and quietly
+# deindexed the live site — twice: 17 Aug 17:14 UTC for about 11 hours, and
+# 18 Aug 06:03 UTC for about 37 minutes. Nobody saw a log entry, because no
+# person had done it. The client spotted the ticked box before we did.
+#
+# options is no longer pushed, so this cannot happen the same way again. It is
+# checked anyway: being unable to reach the live site through search is the
+# worst outcome this pipeline can produce, and it is one query to rule out.
+BP="$(field blog_public)"
+if [[ "$BP" == "0" ]]; then
+  die "PRODUCTION IS SET TO NOINDEX (blog_public=0) — the live site is telling search engines to stay away.
+   Fix now:  wp option update blog_public 1   (or untick Settings -> Reading -> Search engine visibility)"
+fi
+[[ "$BP" == "1" ]] && ok "search engines allowed (blog_public=1)" \
+  || { warn "blog_public reads '${BP:-unset}', expected 1"; FAILED=$((FAILED+1)); }
 
 # ---------------------------------------------------------------------------
 # 7b. Prove the changed items actually match on both sides.
