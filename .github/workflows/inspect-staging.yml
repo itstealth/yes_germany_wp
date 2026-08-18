@@ -11,6 +11,10 @@ on:
         description: 'Text to look for in staging content'
         required: true
         default: 'No Promise'
+      post_id:
+        description: 'Page whose revision history to dump'
+        required: true
+        default: '4748'
       unban:
         description: 'Also clear CrowdSec bans on the tailnet range'
         type: boolean
@@ -49,17 +53,37 @@ jobs:
           U: ${{ secrets.DEPLOY_USER }}
           P: ${{ secrets.DEPLOY_PORT }}
           Q: ${{ inputs.search }}
+          PID: ${{ inputs.post_id }}
         run: |
           set -euo pipefail
           cat > /tmp/q.sql <<SQL
+          SELECT '--- where the text appears ---';
           SELECT CONCAT('postmeta_rows=', COUNT(*)) FROM wpb9_postmeta WHERE meta_value LIKE '%${Q}%';
           SELECT CONCAT('posts_rows=',    COUNT(*)) FROM wpb9_posts    WHERE post_content LIKE '%${Q}%';
-          SELECT CONCAT('options_rows=',  COUNT(*)) FROM wpb9_options  WHERE option_value LIKE '%${Q}%';
           SELECT CONCAT('post_id=', p.ID, ' type=', p.post_type, ' status=', p.post_status, ' modified=', p.post_modified, ' title=', LEFT(p.post_title,40))
             FROM wpb9_posts p WHERE p.post_content LIKE '%${Q}%' ORDER BY p.post_modified DESC LIMIT 5;
-          SELECT CONCAT('meta_post_id=', pm.post_id, ' key=', pm.meta_key, ' parent_status=', p.post_status, ' modified=', p.post_modified)
-            FROM wpb9_postmeta pm JOIN wpb9_posts p ON p.ID=pm.post_id
-            WHERE pm.meta_value LIKE '%${Q}%' ORDER BY p.post_modified DESC LIMIT 8;
+
+          SELECT '--- current state of the page ---';
+          SELECT CONCAT('post ', p.ID, ' modified=', p.post_modified, ' author=', p.post_author,
+                        ' md5=', LEFT(MD5(pm.meta_value),10), ' len=', LENGTH(pm.meta_value))
+            FROM wpb9_posts p JOIN wpb9_postmeta pm ON pm.post_id=p.ID AND pm.meta_key='_elementor_data'
+            WHERE p.ID=${PID};
+
+          SELECT '--- revision history, newest first (who saved what, when) ---';
+          SELECT CONCAT(RPAD(p.ID,7,' '), ' ', p.post_modified, ' author=', RPAD(IFNULL(u.user_login,CONCAT('#',p.post_author)),18,' '),
+                        ' md5=', LEFT(MD5(pm.meta_value),10), ' len=', LENGTH(pm.meta_value))
+            FROM wpb9_posts p
+            JOIN wpb9_postmeta pm ON pm.post_id=p.ID AND pm.meta_key='_elementor_data'
+            LEFT JOIN wpb9_users u ON u.ID=p.post_author
+            WHERE p.post_parent=${PID} AND p.post_type='revision'
+            ORDER BY p.ID DESC LIMIT 12;
+
+          SELECT '--- accounts that can edit staging ---';
+          SELECT CONCAT('user ', u.ID, ' ', RPAD(u.user_login,20,' '), ' ', u.user_email, '  registered=', u.user_registered)
+            FROM wpb9_users u
+            JOIN wpb9_usermeta m ON m.user_id=u.ID AND m.meta_key='wpb9_capabilities'
+            WHERE m.meta_value LIKE '%administrator%' OR m.meta_value LIKE '%editor%'
+            ORDER BY u.ID;
           SQL
           ssh -i ~/.ssh/deploy_key -p "$P" -o BatchMode=yes -o StrictHostKeyChecking=yes "${U}@${H}" \
             'cd /opt/yesgermany/staging && set -a && . ./.env && set +a && docker compose exec -T db mysql -u root -p"$DB_ROOT_PASSWORD" -N "$DB_NAME"' \
