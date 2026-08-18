@@ -58,8 +58,16 @@ TABLES="posts postmeta terms termmeta term_taxonomy term_relationships"
 # drifted — id 8200 is post 139170 on production and 139169 on staging —
 # because each side creates a row the first time it sees a post. Keying on id
 # would write one page's SEO onto a different page.
-SEO_TABLES="aioseo_posts aioseo_terms"
-natkey() { case "$1" in aioseo_posts) echo post_id ;; aioseo_terms) echo term_id ;; esac; }
+SEO_TABLES="aioseo_posts aioseo_terms aioseo_redirects"
+natkey() {
+  case "$1" in
+    aioseo_posts)     echo post_id ;;
+    aioseo_terms)     echo term_id ;;
+    # AIOSEO's own SHA1 of source_url: 40 chars, unique, identical on both
+    # sides. source_url itself runs to 73 characters, too long for the key.
+    aioseo_redirects) echo source_url_hash ;;
+  esac
+}
 
 # The focus keyphrase is the one part of the keyphrases blob a person types, so
 # it is pulled out and hashed on its own while the rest of the blob (analysis

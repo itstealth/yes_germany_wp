@@ -131,3 +131,21 @@ SET @q := CONCAT('SELECT ''aioseo_terms'', term_id, MD5(REPLACE(REPLACE(REPLACE(
                  ' WHERE term_id NOT IN (SELECT term_id FROM (SELECT term_id FROM __PREFIX__aioseo_terms',
                  ' GROUP BY term_id HAVING COUNT(*)>1) d)');
 PREPARE s FROM @q; EXECUTE s; DEALLOCATE PREPARE s;
+
+-- Redirect rules. Keyed on source_url_hash: AIOSEO's own SHA1 of source_url,
+-- 40 chars, unique, no nulls, and identical on both sides for the same URL —
+-- which source_url itself is not suitable for, at up to 73 characters. `id` is
+-- auto_increment here too, so rows travel without it.
+--
+-- Only the rules travel. Hit counts live in aioseo_redirects_hits and the 404
+-- and redirect logs in their own tables; those are production's own traffic
+-- data and are never touched.
+SET @cols := (SELECT GROUP_CONCAT(CONCAT('IFNULL(`',column_name,'`,\'\')') ORDER BY ordinal_position SEPARATOR ',')
+              FROM information_schema.columns
+              WHERE table_schema=DATABASE() AND table_name='__PREFIX__aioseo_redirects'
+                AND column_name NOT IN ('id','updated','seo_score','page_analysis','keyphrases','images','videos','truseo') AND column_name NOT LIKE '%\\_scan\\_date');
+SET @q := CONCAT('SELECT ''aioseo_redirects'', source_url_hash, MD5(REPLACE(REPLACE(REPLACE(CONCAT_WS(''|'',', @cols,
+                 '),''__STG_URL__'',''@''),''__PROD_URL__'',''@''),''__PROD_URL2__'',''@'')) FROM __PREFIX__aioseo_redirects',
+                 ' WHERE source_url_hash NOT IN (SELECT source_url_hash FROM (SELECT source_url_hash FROM __PREFIX__aioseo_redirects',
+                 ' GROUP BY source_url_hash HAVING COUNT(*)>1) d)');
+PREPARE s FROM @q; EXECUTE s; DEALLOCATE PREPARE s;
