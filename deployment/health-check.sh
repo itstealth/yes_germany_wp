@@ -10,6 +10,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 
+# A health check only reads; it never writes a backup. configure_environment
+# demands REMOTE_BACKUP_DIR for production, which made this script exit 1 on a
+# publish that had already succeeded — the run went red and looked as though
+# nothing had gone live. Supply a placeholder so a missing backup path cannot
+# fail a read-only check; the scripts that do write backups still require it.
+: "${REMOTE_BACKUP_DIR:=/unused-by-health-check}"
+
 configure_environment "${1:?usage: health-check.sh <env> <base-url>}"
 BASE_URL="${2:?usage: health-check.sh <env> <base-url>}"
 BASE_URL="${BASE_URL%/}"
