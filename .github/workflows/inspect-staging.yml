@@ -1,0 +1,77 @@
+name: Inspect staging
+
+# Diagnostic. Runs read-only queries against staging from a runner, which is
+# useful when an operator's own IP has been banned by CrowdSec — and is the
+# right place to run this anyway.
+
+on:
+  workflow_dispatch:
+    inputs:
+      search:
+        description: 'Text to look for in staging content'
+        required: true
+        default: 'No Promise'
+      unban:
+        description: 'Also clear CrowdSec bans on the tailnet range'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          tags: ${{ vars.TS_TAGS || '' }}
+          version: latest
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Where does the text live on staging?
+        env:
+          H: ${{ secrets.DEPLOY_HOST }}
+          U: ${{ secrets.DEPLOY_USER }}
+          P: ${{ secrets.DEPLOY_PORT }}
+          Q: ${{ inputs.search }}
+        run: |
+          set -euo pipefail
+          cat > /tmp/q.sql <<SQL
+          SELECT CONCAT('postmeta_rows=', COUNT(*)) FROM wpb9_postmeta WHERE meta_value LIKE '%${Q}%';
+          SELECT CONCAT('posts_rows=',    COUNT(*)) FROM wpb9_posts    WHERE post_content LIKE '%${Q}%';
+          SELECT CONCAT('options_rows=',  COUNT(*)) FROM wpb9_options  WHERE option_value LIKE '%${Q}%';
+          SELECT CONCAT('post_id=', p.ID, ' type=', p.post_type, ' status=', p.post_status, ' modified=', p.post_modified, ' title=', LEFT(p.post_title,40))
+            FROM wpb9_posts p WHERE p.post_content LIKE '%${Q}%' ORDER BY p.post_modified DESC LIMIT 5;
+          SELECT CONCAT('meta_post_id=', pm.post_id, ' key=', pm.meta_key, ' parent_status=', p.post_status, ' modified=', p.post_modified)
+            FROM wpb9_postmeta pm JOIN wpb9_posts p ON p.ID=pm.post_id
+            WHERE pm.meta_value LIKE '%${Q}%' ORDER BY p.post_modified DESC LIMIT 8;
+          SQL
+          ssh -i ~/.ssh/deploy_key -p "$P" -o BatchMode=yes -o StrictHostKeyChecking=yes "${U}@${H}" \
+            'cd /opt/yesgermany/staging && set -a && . ./.env && set +a && docker compose exec -T db mysql -u root -p"$DB_ROOT_PASSWORD" -N "$DB_NAME"' \
+            < /tmp/q.sql | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Clear CrowdSec bans on the tailnet
+        if: ${{ inputs.unban }}
+        env:
+          H: ${{ secrets.DEPLOY_HOST }}
+          U: ${{ secrets.DEPLOY_USER }}
+          P: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$P" -o BatchMode=yes "${U}@${H}" \
+            'sudo -n cscli decisions delete --range 100.64.0.0/10 2>/dev/null || cscli decisions delete --range 100.64.0.0/10 2>/dev/null || echo "needs root; skipped"' \
+            | tee -a "$GITHUB_STEP_SUMMARY"
