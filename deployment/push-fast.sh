@@ -148,15 +148,48 @@ fi
 $DRY_RUN && { log "Dry run complete."; exit 0; }
 
 # ---------------------------------------------------------------------------
-# 3. Back up production
+# 3. Snapshot production — only the tables this publish replaces.
+#
+# This used to be `wp db export` of the whole database: 642 tables, 1,059 MB,
+# several minutes, repeated on every publish. Only 178 of those tables belong to
+# this site — the other 464 belong to eleven unrelated client sites sharing the
+# database, so each publish also wrote a copy of other clients' data into this
+# site's backup directory. That is a data-handling problem as much as a slow one.
+#
+# The push only ever replaces six tables (285 MB), so only those six need
+# saving. They are copied inside the database: no dump, no gzip, no disk round
+# trip. That makes the snapshot both the fastest thing to take and the fastest
+# thing to undo — rollback-content.sh restores straight from it.
+#
+# A compressed copy of the same six tables is written afterwards, detached, so
+# durable history still exists without sitting on the critical path.
 # ---------------------------------------------------------------------------
+CONTENT_TABLES="posts postmeta terms termmeta term_taxonomy term_relationships"
+SNAP="${PREFIX}ygsnap_"
 BDIR="${PROD_BACKUP_DIR}/${STAMP}"
-log "Backing up production"
-prod "mkdir -p '${BDIR}' && chmod 700 '${BDIR}' && cd '${PROD_ROOT}' && \
-      wp db export - --single-transaction --quick --skip-plugins --skip-themes | gzip -6 > '${BDIR}/database.sql.gz'" \
-  || die "Backup failed — nothing was changed."
-prod "gzip -t '${BDIR}/database.sql.gz'" || die "Backup is corrupt — nothing was changed."
-ok "backed up ($(prod "du -h '${BDIR}/database.sql.gz' | cut -f1"))"
+
+log "Snapshotting the tables this publish replaces"
+{
+  for t in $CONTENT_TABLES; do
+    printf "DROP TABLE IF EXISTS %s%s;\nCREATE TABLE %s%s LIKE %s%s;\nINSERT INTO %s%s SELECT * FROM %s%s;\n" \
+      "$SNAP" "$t" "$SNAP" "$t" "$PREFIX" "$t" "$SNAP" "$t" "$PREFIX" "$t"
+  done
+} | prod_sql || die "Snapshot failed — nothing was changed."
+
+# Row-for-row, in one round trip. An incomplete snapshot is worse than none:
+# it looks like a safety net and is not one.
+SNAP_CHECK="$(for t in $CONTENT_TABLES; do
+    printf "SELECT CONCAT('%s:',(SELECT COUNT(*) FROM %s%s),':',(SELECT COUNT(*) FROM %s%s));\n" \
+      "$t" "$PREFIX" "$t" "$SNAP" "$t"
+  done | prod_sql | tr -d '\r' | grep ':')"
+
+BAD=""
+while IFS=: read -r t live snapped; do
+  [[ -n "$t" ]] || continue
+  [[ "${live:-x}" == "${snapped:-y}" ]] || BAD="${BAD} ${t}(${snapped:-?}/${live:-?})"
+done <<< "$SNAP_CHECK"
+[[ -z "${BAD// /}" ]] || die "Snapshot incomplete:${BAD} — nothing was changed."
+ok "snapshot taken ($(printf '%s\n' "$SNAP_CHECK" | awk -F: '{s+=$2} END {print s}') rows, in-database)"
 
 # ---------------------------------------------------------------------------
 # 4. Dump content on staging, into a file on staging
@@ -224,7 +257,7 @@ for i in $(seq 1 120); do
   S="$(prod "tail -1 '${STATE}' 2>/dev/null" | tr -d '\r')"
   case "$S" in
     DONE)   ok "applied"; break ;;
-    FAILED) prod "cat '${STATE}'" | sed 's/^/    /'; die "Apply failed on production. Backup: ${BDIR}/database.sql.gz" ;;
+    FAILED) prod "cat '${STATE}'" | sed 's/^/    /'; die "Apply failed on production. Undo with: rollback-content.sh" ;;
     *)      [[ -n "$S" ]] && printf '\r    %-60s' "$S" ;;
   esac
   [[ $i -eq 120 ]] && die "Timed out waiting for production. Check ${STATE} on the server."
@@ -248,7 +281,7 @@ LIVE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 60 "${PROD_URL}/" || 
 [[ "$LIVE" == "200" ]] && ok "live site HTTP 200" || { warn "live site HTTP ${LIVE}"; FAILED=$((FAILED+1)); }
 
 SURL="$(prod "cd '${PROD_ROOT}' && wp option get siteurl --skip-plugins --skip-themes 2>/dev/null" | tr -d '\r' | grep -E '^https?' | head -1)"
-[[ "$SURL" == *stealthlearn* ]] && die "production siteurl is '${SURL}' — RESTORE NOW from ${BDIR}/database.sql.gz"
+[[ "$SURL" == *stealthlearn* ]] && die "production siteurl is '${SURL}' — RUN rollback-content.sh NOW"
 ok "siteurl intact: ${SURL}"
 
 # ---------------------------------------------------------------------------
@@ -290,10 +323,28 @@ if [[ "${CHANGED_N:-0}" -gt 0 ]]; then
   fi
 fi
 
-[[ "$FAILED" -gt 0 ]] && die "Published, but ${FAILED} check(s) failed. Backup: ${BDIR}/database.sql.gz"
+[[ "$FAILED" -gt 0 ]] && die "Published, but ${FAILED} check(s) failed. Undo with: rollback-content.sh"
 
 prod "cd '${PROD_ROOT}' && wp option update yg_last_push \"\$(date -u '+%Y-%m-%d %H:%M:%S')\" --autoload=no --skip-plugins --skip-themes" >/dev/null 2>&1 \
   && ok "watermark recorded"
 prod "rm -f /home/${PROD_USER}/_yg_remote_apply.sh '${STATE}'" || true
 
-log "Published. Backup kept at ${BDIR}/database.sql.gz"
+# ---------------------------------------------------------------------------
+# 8. Durable copy of the pre-publish state, off the critical path.
+#
+# The in-database snapshot is the rollback path and is already in place. This
+# writes the same six tables to disk so history survives a database loss, but
+# detached — the publish has already finished by the time it runs, and it dumps
+# the snapshot tables, which nothing else touches, so it cannot contend with the
+# import. Six tables, not 642: no other client's data is written here.
+# ---------------------------------------------------------------------------
+SNAP_LIST=""
+for t in $CONTENT_TABLES; do SNAP_LIST="${SNAP_LIST}${SNAP_LIST:+,}${SNAP}${t}"; done
+prod "mkdir -p '${BDIR}' && chmod 700 '${BDIR}' && cd '${PROD_ROOT}' && \
+      setsid nohup sh -c \"wp db export - --tables='${SNAP_LIST}' --single-transaction --quick \
+        --skip-plugins --skip-themes | gzip -6 > '${BDIR}/content-before.sql.gz'\" \
+      >/dev/null 2>&1 < /dev/null &" >/dev/null 2>&1 \
+  && ok "archiving pre-publish content to ${BDIR}/content-before.sql.gz (in background)" \
+  || warn "could not start the background archive — the in-database snapshot is still in place"
+
+log "Published. Undo with: deployment/rollback-content.sh"
