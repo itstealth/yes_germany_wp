@@ -72,9 +72,9 @@ ok "target confirmed: staging"
 # ---------------------------------------------------------------------------
 STG_NEWEST="$(ssh_stg_q "cd '${STG_DIR}' && set -a && . ./.env && set +a && \
   docker compose exec -T db mysql -u root -p\"\$DB_ROOT_PASSWORD\" -N \"\$DB_NAME\" -e \
-  \"SELECT COALESCE(MAX(post_modified),'-') FROM ${PREFIX}posts WHERE post_type NOT IN ('revision');\" 2>/dev/null" \
+  \"SELECT COALESCE(MAX(post_modified),'-') FROM ${PREFIX}posts WHERE post_type NOT IN ('revision') AND post_status NOT IN ('auto-draft','inherit','trash');\" 2>/dev/null" \
   | tr -d '\r' | grep -E '^[0-9]{4}-|^-' | head -1)"
-PROD_NEWEST="$(ssh_prod_q "cd '${PROD_ROOT}' && wp db query \"SELECT COALESCE(MAX(post_modified),'-') FROM ${PREFIX}posts WHERE post_type NOT IN ('revision');\" --skip-column-names 2>/dev/null" \
+PROD_NEWEST="$(ssh_prod_q "cd '${PROD_ROOT}' && wp db query \"SELECT COALESCE(MAX(post_modified),'-') FROM ${PREFIX}posts WHERE post_type NOT IN ('revision') AND post_status NOT IN ('auto-draft','inherit','trash');\" --skip-column-names 2>/dev/null" \
   | tr -d '\r' | grep -E '^[0-9]{4}-|^-' | head -1)"
 
 log "  staging newest content:    ${STG_NEWEST}"

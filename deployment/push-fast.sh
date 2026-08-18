@@ -67,13 +67,18 @@ ok "target is production"
 # ---------------------------------------------------------------------------
 # 2. Has production been edited since the last publish?
 #
+# auto-draft rows are excluded: WordPress creates one the instant somebody
+# clicks "Add New Post" in wp-admin, even if they type nothing. Counting those
+# as "production was edited" blocked a legitimate publish. 'inherit' covers
+# attachment/revision rows, 'trash' is not live content either.
+#
 # Compared against a watermark written by the previous push, not against
 # staging's newest row. Comparing the two sides directly cannot tell "someone
 # edited production" from "staging deleted something", so deletions always
 # looked like a conflict.
 # ---------------------------------------------------------------------------
 WATERMARK="$(prod "cd '${PROD_ROOT}' && wp option get yg_last_push --skip-plugins --skip-themes 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]{4}-' | head -1 || true)"
-PROD_NEWEST="$(prod "cd '${PROD_ROOT}' && wp db query \"SELECT MAX(post_modified) FROM ${PREFIX}posts WHERE post_type NOT IN ('revision','awsm_job_application');\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]{4}-' | head -1)"
+PROD_NEWEST="$(prod "cd '${PROD_ROOT}' && wp db query \"SELECT MAX(post_modified) FROM ${PREFIX}posts WHERE post_type NOT IN ('revision','awsm_job_application') AND post_status NOT IN ('auto-draft','inherit','trash');\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]{4}-' | head -1)"
 
 if [[ -n "$WATERMARK" ]]; then
   log "  last publish:      ${WATERMARK}"
