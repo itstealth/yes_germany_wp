@@ -261,8 +261,12 @@ if [[ "${PUSH_MODE:-diff}" == "diff" ]]; then
   DELTA="/tmp/yg-delta-${STAMP}.sql.gz"
 
   log "Checksumming production content"
+  # Production stores some URLs without the www; both forms must collapse to the
+  # same token or those rows look different on every publish.
+  PROD_URL2="${PROD_URL/https:\/\/www./https://}"
   SUMS_SQL="$(sed -e "s|__PREFIX__|${PREFIX}|g" -e "s|__STG_URL__|${STG_URL}|g" \
-                  -e "s|__PROD_URL__|${PROD_URL}|g" -e "s|__META_EXCL__|${META_EXCL}|g" \
+                  -e "s|__PROD_URL__|${PROD_URL}|g" -e "s|__PROD_URL2__|${PROD_URL2}|g" \
+                  -e "s|__META_EXCL__|${META_EXCL}|g" \
                   "${SCRIPT_DIR}/content-sums.sql.tpl")"
   # scp, not a pipe into prod(): prod() runs ssh -n, which points stdin at
   # /dev/null, so piping into it wrote a 0-byte file and the whole delta path
