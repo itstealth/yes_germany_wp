@@ -114,7 +114,19 @@ ok "backed up ($(prod "du -h '${BDIR}/database.sql.gz' | cut -f1"))"
 # 4. Dump content on staging, into a file on staging
 # ---------------------------------------------------------------------------
 TBLS=""
-for t in posts postmeta terms termmeta term_taxonomy term_relationships options; do TBLS="${TBLS} ${PREFIX}${t}"; done
+# options is deliberately NOT pushed.
+#
+# It holds active_plugins and every credential on the site. Pushing it wholesale
+# carried staging's state onto production: nine plugins switched off — including
+# LiteSpeed Cache, Site Kit, MonsterInsights and Microsoft UET — and the API
+# credentials that harden-staging.sh deletes from staging were copied over the
+# live ones. The client's analytics and ad tracking were dead for ~13 hours
+# before anyone noticed.
+#
+# Plugin settings therefore do not travel yet. Restoring that needs a per-row
+# allowlist, not a table copy; until that exists, settings are changed on live
+# or via migrations/.
+for t in posts postmeta terms termmeta term_taxonomy term_relationships; do TBLS="${TBLS} ${PREFIX}${t}"; done
 STG_FILE="/tmp/yg-content-${STAMP}.sql.gz"
 
 log "Dumping content on staging"
