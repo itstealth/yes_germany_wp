@@ -24,7 +24,12 @@ cd "$(dirname "$0")" 2>/dev/null || true
 WP_ROOT="${WP_ROOT:-$HOME/public_html}"
 cd "$WP_ROOT" || { say "FATAL cannot enter ${WP_ROOT}"; echo FAILED >> "$STATE"; exit 1; }
 
-q() { wp db query "$1" --skip-plugins --skip-themes 2>/dev/null; }
+# The relaxed sql_mode travels with every statement because each wp db query is
+# its own session. CREATE TABLE ... LIKE on a WordPress table fails under strict
+# mode: posts.post_date defaults to '0000-00-00 00:00:00'. Production's mode
+# happens to permit it today; this stops a server-side change from breaking the
+# holding tables, which are what protect live job applications.
+q() { wp db query "SET SESSION sql_mode='NO_ENGINE_SUBSTITUTION'; $1" --skip-plugins --skip-themes 2>/dev/null; }
 n() { wp db query "$1" --skip-column-names --skip-plugins --skip-themes 2>/dev/null | tr -d '\r' | grep -E '^[0-9]+$' | head -1; }
 
 say "START"

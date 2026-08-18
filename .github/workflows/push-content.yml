@@ -178,6 +178,7 @@ jobs:
           DEPLOY_HOST: ${{ secrets.PROD_HOST }}
           DEPLOY_USER: ${{ secrets.PROD_USER }}
           REMOTE_ROOT: ${{ secrets.PROD_ROOT }}
+          DEPLOY_SSH_KEY_FILE: /home/runner/.ssh/prod_deploy_key
         run: bash deployment/health-check.sh production https://www.yesgermany.com
 
       - name: Summary

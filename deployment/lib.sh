@@ -84,9 +84,21 @@ assert_backup_dir_safe() {
 # ---------------------------------------------------------------------------
 # SSH
 # ---------------------------------------------------------------------------
+# Staging and production are different hosts with different keys. This used to
+# hardcode ~/.ssh/deploy_key for both, so on a CI runner — where that file is the
+# STAGING key — every SSH-based production check failed with "Permission denied"
+# and turned a publish that had actually succeeded into a red run.
 ssh_opts() {
+  local key="${DEPLOY_SSH_KEY_FILE:-}"
+  if [[ -z "$key" ]]; then
+    if [[ "${ENVIRONMENT:-}" == "production" && -f "${HOME}/.ssh/prod_deploy_key" ]]; then
+      key="${HOME}/.ssh/prod_deploy_key"
+    elif [[ -f "${HOME}/.ssh/deploy_key" ]]; then
+      key="${HOME}/.ssh/deploy_key"
+    fi
+  fi
   local key_opt=""
-  [[ -f "${HOME}/.ssh/deploy_key" ]] && key_opt="-i ${HOME}/.ssh/deploy_key"
+  [[ -n "$key" && -f "$key" ]] && key_opt="-i ${key}"
   echo "${key_opt} -p ${DEPLOY_PORT} -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15"
 }
 

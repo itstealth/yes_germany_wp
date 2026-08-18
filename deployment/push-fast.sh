@@ -170,6 +170,11 @@ BDIR="${PROD_BACKUP_DIR}/${STAMP}"
 
 log "Snapshotting the tables this publish replaces"
 {
+  # WordPress columns like posts.post_date carry DEFAULT '0000-00-00 00:00:00',
+  # which strict mode rejects — CREATE TABLE ... LIKE re-creates the definition
+  # and fails with "Invalid default value for 'post_date'". mysqldump relaxes
+  # sql_mode for exactly this reason; so does this.
+  printf "SET SESSION sql_mode='NO_ENGINE_SUBSTITUTION';\n"
   for t in $CONTENT_TABLES; do
     printf "DROP TABLE IF EXISTS %s%s;\nCREATE TABLE %s%s LIKE %s%s;\nINSERT INTO %s%s SELECT * FROM %s%s;\n" \
       "$SNAP" "$t" "$SNAP" "$t" "$PREFIX" "$t" "$SNAP" "$t" "$PREFIX" "$t"
@@ -181,7 +186,15 @@ log "Snapshotting the tables this publish replaces"
 SNAP_CHECK="$(for t in $CONTENT_TABLES; do
     printf "SELECT CONCAT('%s:',(SELECT COUNT(*) FROM %s%s),':',(SELECT COUNT(*) FROM %s%s));\n" \
       "$t" "$PREFIX" "$t" "$SNAP" "$t"
-  done | prod_sql | tr -d '\r' | grep ':')"
+  done | prod_sql | tr -d '\r' | grep ':' || true)"
+
+# Silence is not success. A failed DDL, a dropped connection or a SQL error all
+# produce no rows, and an empty result previously sailed through this check as
+# "no mismatches found" — reporting a snapshot that did not exist.
+EXPECTED="$(printf '%s\n' $CONTENT_TABLES | grep -c .)"
+GOT="$(printf '%s\n' "$SNAP_CHECK" | grep -c ':' || true)"
+[[ "${GOT:-0}" -eq "${EXPECTED:-0}" ]] \
+  || die "Snapshot check reported ${GOT:-0} of ${EXPECTED} tables — treating as failed. Nothing was changed."
 
 BAD=""
 while IFS=: read -r t live snapped; do

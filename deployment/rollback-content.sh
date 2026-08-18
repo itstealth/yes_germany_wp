@@ -99,7 +99,10 @@ STATE='${STATE}'
 cd "\${WP_ROOT:-\$HOME/public_html}" || { echo FAILED >> "\$STATE"; exit 1; }
 
 say() { printf '%s %s\n' "\$(date -u +%H:%M:%S)" "\$*" >> "\$STATE"; }
-q()   { wp db query "\$1" --skip-plugins --skip-themes 2>/dev/null; }
+# Every wp db query is its own session, so the relaxed sql_mode has to travel
+# with each statement rather than being set once: WordPress columns default to
+# '0000-00-00 00:00:00' and CREATE TABLE ... LIKE fails under strict mode.
+q()   { wp db query "SET SESSION sql_mode='NO_ENGINE_SUBSTITUTION'; \$1" --skip-plugins --skip-themes 2>/dev/null; }
 n()   { wp db query "\$1" --skip-column-names --skip-plugins --skip-themes 2>/dev/null | tr -d '\r' | grep -E '^[0-9]+\$' | head -1; }
 
 say "START"
