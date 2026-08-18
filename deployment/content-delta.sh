@@ -228,4 +228,15 @@ trap 'rm -rf "$TMP"' EXIT
 } > "${TMP}/delta.sql"
 
 gzip -6 -c "${TMP}/delta.sql" > "$OUT"
+
+# The two checksum tables are ~72k rows each and have served their purpose. The
+# much smaller ship/del lists are left behind deliberately: when a publish looks
+# wrong, "which rows did it decide to send" is the first question worth asking.
+{
+  for t in $TABLES; do
+    echo "DROP TABLE IF EXISTS _yg_psum_${t};"
+    echo "DROP TABLE IF EXISTS _yg_ssum_${t};"
+  done
+} | my
+
 echo "VERDICT ok"
