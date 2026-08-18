@@ -236,20 +236,91 @@ TBLS=""
 # Plugin settings therefore do not travel yet. Restoring that needs a per-row
 # allowlist, not a table copy; until that exists, settings are changed on live
 # or via migrations/.
-for t in posts postmeta terms termmeta term_taxonomy term_relationships; do TBLS="${TBLS} ${PREFIX}${t}"; done
+for t in $CONTENT_TABLES; do TBLS="${TBLS} ${PREFIX}${t}"; done
 STG_FILE="/tmp/yg-content-${STAMP}.sql.gz"
+APPLY_SCRIPT="remote-apply.sh"
+MODE=full
 
-log "Dumping content on staging"
-stg "cd '${STG_DIR}' && set -a && . ./.env && set +a && \
-     docker compose exec -T db mysqldump -u root -p\"\$DB_ROOT_PASSWORD\" \
-       --single-transaction --quick --default-character-set=utf8mb4 \
-       \"\$DB_NAME\" ${TBLS} 2>/dev/null \
-     | sed 's|${STG_URL}|${PROD_URL}|g' \
-     | gzip -6 > '${STG_FILE}'" \
-  || die "Could not dump content on staging."
-stg "gzip -t '${STG_FILE}'" || die "Staging dump is corrupt."
-SZ="$(stg "du -h '${STG_FILE}' | cut -f1")"
-ok "dumped ${SZ} (URLs already rewritten)"
+# ---------------------------------------------------------------------------
+# 4a. Try to send only what changed.
+#
+# Copying all six tables moves 53 MB to alter one word. The delta is derived
+# from a hash of every row on both sides — not from timestamps, which say
+# nothing about rows a plugin wrote directly and nothing at all about rows that
+# were deleted.
+#
+# Every failure here falls through to the full copy below. The differential path
+# is an optimisation; it is never the only way content can reach production.
+# Set PUSH_MODE=full to skip it.
+# ---------------------------------------------------------------------------
+if [[ "${PUSH_MODE:-diff}" == "diff" ]]; then
+  DELTA_DONE=false
+  META_EXCL="''_elementor_css'',''_elementor_element_cache'',''_elementor_page_assets'',''ekit_post_views_count'',''_edit_lock'',''_edit_last''"
+  P_SUMS="/home/${PROD_USER}/_yg_sums-${STAMP}.tsv.gz"
+  S_SUMS="/tmp/yg-prodsums-${STAMP}.tsv.gz"
+  DELTA="/tmp/yg-delta-${STAMP}.sql.gz"
+
+  log "Checksumming production content"
+  SUMS_SQL="$(sed -e "s|__PREFIX__|${PREFIX}|g" -e "s|__STG_URL__|${STG_URL}|g" \
+                  -e "s|__PROD_URL__|${PROD_URL}|g" -e "s|__META_EXCL__|${META_EXCL}|g" \
+                  "${SCRIPT_DIR}/content-sums.sql.tpl")"
+  if printf '%s\n' "$SUMS_SQL" | prod "cat > /tmp/_yg_sums-${STAMP}.sql" \
+     && prod "cd '${PROD_ROOT}' && wp db query --skip-column-names --skip-plugins --skip-themes \
+              < /tmp/_yg_sums-${STAMP}.sql 2>/dev/null | gzip -6 > '${P_SUMS}'; rm -f /tmp/_yg_sums-${STAMP}.sql" \
+     && prod "test -s '${P_SUMS}'"; then
+    ok "production checksums ($(prod "du -h '${P_SUMS}' | cut -f1"))"
+
+    # Staging pulls. Production cannot reach staging — it is not on the tailnet.
+    if stg "scp -q -i ~/.ssh/prod_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+              '${PROD_USER}@${PROD_HOST}:${P_SUMS}' '${S_SUMS}'"; then
+      scp -q -i "$STG_KEY" -P "$STG_PORT" $SSHB "${SCRIPT_DIR}/content-delta.sh" \
+          "${STG_USER}@${STG_HOST}:/tmp/_yg_content_delta-${STAMP}.sh"
+
+      log "Computing the delta on staging"
+      DSTATS="$(stg "chmod +x /tmp/_yg_content_delta-${STAMP}.sh && \
+                     STACK_DIR='${STG_DIR}' /tmp/_yg_content_delta-${STAMP}.sh \
+                       '${S_SUMS}' '${DELTA}' '${PREFIX}' '${STG_URL}' '${PROD_URL}' 20000" || true)"
+      printf '%s\n' "$DSTATS" | grep -E '^(posts|postmeta|terms|termmeta|term_taxonomy|term_relationships|TOTAL) ' \
+        | sed 's/^/      /' || true
+
+      if printf '%s\n' "$DSTATS" | grep -q '^VERDICT ok'; then
+        SHIP="$(printf '%s\n' "$DSTATS" | awk '/^TOTAL /{for(i=1;i<=NF;i++) if($i ~ /^ship=/){sub(/ship=/,"",$i); print $i}}')"
+        DEL="$(printf '%s\n' "$DSTATS"  | awk '/^TOTAL /{for(i=1;i<=NF;i++) if($i ~ /^del=/){sub(/del=/,"",$i); print $i}}')"
+        if [[ "$(( ${SHIP:-0} + ${DEL:-0} ))" -eq 0 ]]; then
+          warn "no row-level differences — production already matches staging"
+        fi
+        if stg "test -s '${DELTA}' && gzip -t '${DELTA}'"; then
+          STG_FILE="$DELTA"; APPLY_SCRIPT="remote-apply-delta.sh"; MODE=delta; DELTA_DONE=true
+          ok "delta ready: ${SHIP:-0} row(s) to write, ${DEL:-0} to remove ($(stg "du -h '${DELTA}' | cut -f1"))"
+        else
+          warn "delta file missing or corrupt"
+        fi
+      else
+        warn "delta too large or not computable — copying the tables instead"
+      fi
+    else
+      warn "staging could not fetch production's checksums"
+    fi
+  else
+    warn "could not checksum production"
+  fi
+  prod "rm -f '${P_SUMS}'" || true
+  stg  "rm -f '${S_SUMS}' /tmp/_yg_content_delta-${STAMP}.sh" || true
+fi
+
+if [[ "$MODE" != "delta" ]]; then
+  log "Dumping content on staging (full copy)"
+  stg "cd '${STG_DIR}' && set -a && . ./.env && set +a && \
+       docker compose exec -T db mysqldump -u root -p\"\$DB_ROOT_PASSWORD\" \
+         --single-transaction --quick --default-character-set=utf8mb4 \
+         \"\$DB_NAME\" ${TBLS} 2>/dev/null \
+       | sed 's|${STG_URL}|${PROD_URL}|g' \
+       | gzip -6 > '${STG_FILE}'" \
+    || die "Could not dump content on staging."
+  stg "gzip -t '${STG_FILE}'" || die "Staging dump is corrupt."
+  SZ="$(stg "du -h '${STG_FILE}' | cut -f1")"
+  ok "dumped ${SZ} (URLs already rewritten)"
+fi
 
 # ---------------------------------------------------------------------------
 # 5. Straight from staging to production. No machine in between.
@@ -275,8 +346,8 @@ $SENT || die "Could not send content to production. Nothing was changed."
 # Launched with setsid+nohup so it survives this connection closing. From here
 # the orchestrator only reads the state file.
 # ---------------------------------------------------------------------------
-log "Applying on production (detached — safe to disconnect)"
-scp -q -i "$PROD_KEY" $SSHB "${SCRIPT_DIR}/remote-apply.sh" "${PROD_USER}@${PROD_HOST}:/home/${PROD_USER}/_yg_remote_apply.sh"
+log "Applying on production (${MODE}, detached — safe to disconnect)"
+scp -q -i "$PROD_KEY" $SSHB "${SCRIPT_DIR}/${APPLY_SCRIPT}" "${PROD_USER}@${PROD_HOST}:/home/${PROD_USER}/_yg_remote_apply.sh"
 prod "chmod +x /home/${PROD_USER}/_yg_remote_apply.sh && : > '${STATE}' && \
       WP_ROOT='${PROD_ROOT}' setsid nohup /home/${PROD_USER}/_yg_remote_apply.sh \
         '${REMOTE_SQL}' '${PREFIX}' '${STATE}' >/dev/null 2>&1 < /dev/null &" || true
