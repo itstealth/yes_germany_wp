@@ -264,11 +264,21 @@ if [[ "${PUSH_MODE:-diff}" == "diff" ]]; then
   SUMS_SQL="$(sed -e "s|__PREFIX__|${PREFIX}|g" -e "s|__STG_URL__|${STG_URL}|g" \
                   -e "s|__PROD_URL__|${PROD_URL}|g" -e "s|__META_EXCL__|${META_EXCL}|g" \
                   "${SCRIPT_DIR}/content-sums.sql.tpl")"
-  if printf '%s\n' "$SUMS_SQL" | prod "cat > /tmp/_yg_sums-${STAMP}.sql" \
+  # scp, not a pipe into prod(): prod() runs ssh -n, which points stdin at
+  # /dev/null, so piping into it wrote a 0-byte file and the whole delta path
+  # quietly degraded to a full copy — with every staging row looking new.
+  printf '%s\n' "$SUMS_SQL" > "${CM_DIR}/sums.sql"
+
+  # gzip -t proves the file is a valid archive, not that it holds anything: an
+  # empty input still gzips to a valid ~20-byte file. Count the rows instead.
+  P_ROWS=0
+  if scp -q -i "$PROD_KEY" $SSHB "${CM_DIR}/sums.sql" "${PROD_USER}@${PROD_HOST}:/tmp/_yg_sums-${STAMP}.sql" \
      && prod "cd '${PROD_ROOT}' && wp db query --skip-column-names --skip-plugins --skip-themes \
-              < /tmp/_yg_sums-${STAMP}.sql 2>/dev/null | gzip -6 > '${P_SUMS}'; rm -f /tmp/_yg_sums-${STAMP}.sql" \
-     && prod "test -s '${P_SUMS}'"; then
-    ok "production checksums ($(prod "du -h '${P_SUMS}' | cut -f1"))"
+              < /tmp/_yg_sums-${STAMP}.sql 2>/dev/null | gzip -6 > '${P_SUMS}'; rm -f /tmp/_yg_sums-${STAMP}.sql"; then
+    P_ROWS="$(prod "gzip -dc '${P_SUMS}' 2>/dev/null | wc -l" | tr -dc '0-9')"
+  fi
+  if [[ "${P_ROWS:-0}" -ge 1000 ]]; then
+    ok "production checksums: ${P_ROWS} rows ($(prod "du -h '${P_SUMS}' | cut -f1"))"
 
     # Staging pulls. Production cannot reach staging — it is not on the tailnet.
     if stg "scp -q -i ~/.ssh/prod_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
@@ -302,7 +312,7 @@ if [[ "${PUSH_MODE:-diff}" == "diff" ]]; then
       warn "staging could not fetch production's checksums"
     fi
   else
-    warn "could not checksum production"
+    warn "production checksums unusable (${P_ROWS:-0} rows) — copying the tables instead"
   fi
   prod "rm -f '${P_SUMS}'" || true
   stg  "rm -f '${S_SUMS}' /tmp/_yg_content_delta-${STAMP}.sh" || true
