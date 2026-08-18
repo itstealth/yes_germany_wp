@@ -40,6 +40,22 @@ STG_KEY="${STAGING_SSH_KEY_FILE:-${HOME}/.ssh/deploy_key}"
 PROD_KEY="${PROD_SSH_KEY_FILE:-${HOME}/.ssh/prod_deploy_key}"
 SSHB="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15"
 
+# Reuse one connection per host for every command in this run.
+#
+# The script makes about fifteen SSH calls, and a fresh handshake to the cPanel
+# host costs 4-5 seconds — roughly a minute of a two-minute publish spent
+# reconnecting. With multiplexing the first call pays that once and the rest ride
+# the open channel. ControlPersist keeps it briefly after the script exits so a
+# retry does not pay it again either.
+CM_DIR="${TMPDIR:-/tmp}/yg-cm-$$"
+mkdir -p "$CM_DIR" && chmod 700 "$CM_DIR"
+SSHB="${SSHB} -o ControlMaster=auto -o ControlPath=${CM_DIR}/%C -o ControlPersist=120"
+cleanup_cm() {
+  for s in "$CM_DIR"/*; do [[ -S "$s" ]] && ssh -O exit -o ControlPath="$s" x 2>/dev/null || true; done
+  rm -rf "$CM_DIR" 2>/dev/null || true
+}
+trap cleanup_cm EXIT
+
 stg()  { ssh -n -i "$STG_KEY"  -p "$STG_PORT" $SSHB "${STG_USER}@${STG_HOST}"  "$@"; }
 prod() { ssh -n -i "$PROD_KEY" $SSHB "${PROD_USER}@${PROD_HOST}" "$@"; }
 
@@ -265,15 +281,18 @@ prod "chmod +x /home/${PROD_USER}/_yg_remote_apply.sh && : > '${STATE}' && \
       WP_ROOT='${PROD_ROOT}' setsid nohup /home/${PROD_USER}/_yg_remote_apply.sh \
         '${REMOTE_SQL}' '${PREFIX}' '${STATE}' >/dev/null 2>&1 < /dev/null &" || true
 
-for i in $(seq 1 120); do
-  sleep 5
+# Polled every 2s rather than every 5s. The apply finishes in about 30s, so a
+# 5s interval added up to 5s of pure waiting after it was already done — and
+# with a multiplexed connection each poll is nearly free.
+for i in $(seq 1 300); do
+  sleep 2
   S="$(prod "tail -1 '${STATE}' 2>/dev/null" | tr -d '\r')"
   case "$S" in
     DONE)   ok "applied"; break ;;
     FAILED) prod "cat '${STATE}'" | sed 's/^/    /'; die "Apply failed on production. Undo with: rollback-content.sh" ;;
     *)      [[ -n "$S" ]] && printf '\r    %-60s' "$S" ;;
   esac
-  [[ $i -eq 120 ]] && die "Timed out waiting for production. Check ${STATE} on the server."
+  [[ $i -eq 300 ]] && die "Timed out waiting for production. Check ${STATE} on the server."
 done
 echo
 
@@ -282,20 +301,27 @@ echo
 # ---------------------------------------------------------------------------
 log "Verifying"
 FAILED=0
-PN() { prod "cd '${PROD_ROOT}' && wp db query \"$1\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]+$' | head -1; }
-for pair in "job applications:${PREFIX}posts WHERE post_type='awsm_job_application'" \
-            "comments:${PREFIX}comments" "users:${PREFIX}users"; do
-  name="${pair%%:*}"; expr="${pair#*:}"
-  v="$(PN "SELECT COUNT(*) FROM ${expr};")"
+
+# One query for every count, not one round trip each. These were four separate
+# SSH calls; on this host each handshake costs about as long as the check itself.
+V="$(printf "SELECT CONCAT('jobapps=',(SELECT COUNT(*) FROM %sposts WHERE post_type='awsm_job_application'));
+SELECT CONCAT('comments=',(SELECT COUNT(*) FROM %scomments));
+SELECT CONCAT('users=',(SELECT COUNT(*) FROM %susers));
+SELECT CONCAT('siteurl=',(SELECT option_value FROM %soptions WHERE option_name='siteurl'));\n" \
+  "$PREFIX" "$PREFIX" "$PREFIX" "$PREFIX" | prod_sql | tr -d '\r' || true)"
+
+field() { printf '%s\n' "$V" | grep -m1 "^$1=" | cut -d= -f2-; }
+for name in jobapps comments users; do
+  v="$(field "$name")"
   [[ "${v:-0}" -gt 0 ]] && ok "${name}: ${v}" || { warn "${name}: ${v:-0}"; FAILED=$((FAILED+1)); }
 done
 
-LIVE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 60 "${PROD_URL}/" || echo 000)"
+LIVE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "${PROD_URL}/" || echo 000)"
 [[ "$LIVE" == "200" ]] && ok "live site HTTP 200" || { warn "live site HTTP ${LIVE}"; FAILED=$((FAILED+1)); }
 
-SURL="$(prod "cd '${PROD_ROOT}' && wp option get siteurl --skip-plugins --skip-themes 2>/dev/null" | tr -d '\r' | grep -E '^https?' | head -1)"
+SURL="$(field siteurl)"
 [[ "$SURL" == *stealthlearn* ]] && die "production siteurl is '${SURL}' — RUN rollback-content.sh NOW"
-ok "siteurl intact: ${SURL}"
+[[ -n "$SURL" ]] && ok "siteurl intact: ${SURL}" || { warn "could not read siteurl"; FAILED=$((FAILED+1)); }
 
 # ---------------------------------------------------------------------------
 # 7b. Prove the changed items actually match on both sides.
@@ -353,11 +379,24 @@ prod "rm -f /home/${PROD_USER}/_yg_remote_apply.sh '${STATE}'" || true
 # ---------------------------------------------------------------------------
 SNAP_LIST=""
 for t in $CONTENT_TABLES; do SNAP_LIST="${SNAP_LIST}${SNAP_LIST:+,}${SNAP}${t}"; done
-prod "mkdir -p '${BDIR}' && chmod 700 '${BDIR}' && cd '${PROD_ROOT}' && \
-      setsid nohup sh -c \"wp db export - --tables='${SNAP_LIST}' --single-transaction --quick \
-        --skip-plugins --skip-themes | gzip -6 > '${BDIR}/content-before.sql.gz'\" \
-      >/dev/null 2>&1 < /dev/null &" >/dev/null 2>&1 \
-  && ok "archiving pre-publish content to ${BDIR}/content-before.sql.gz (in background)" \
+# Written to a script and launched with setsid, then the shell exits immediately.
+# Backgrounding the pipeline inline still held the SSH channel open until the
+# dump finished — 17 seconds of a publish spent waiting for work that was
+# supposed to be detached. The redirections must be on the setsid call itself,
+# or the child keeps the inherited descriptors and ssh waits on them.
+ARCH="/home/${PROD_USER}/_yg_archive-${STAMP}.sh"
+prod "cat > '${ARCH}' <<'EOS'
+#!/bin/sh
+mkdir -p '${BDIR}' && chmod 700 '${BDIR}'
+cd '${PROD_ROOT}' || exit 1
+wp db export - --tables='${SNAP_LIST}' --single-transaction --quick --skip-plugins --skip-themes \
+  | gzip -6 > '${BDIR}/content-before.sql.gz'
+rm -f '${ARCH}'
+EOS
+chmod +x '${ARCH}'
+setsid '${ARCH}' </dev/null >/dev/null 2>&1 &
+exit 0" >/dev/null 2>&1 \
+  && ok "archiving pre-publish content to ${BDIR}/content-before.sql.gz (detached)" \
   || warn "could not start the background archive — the in-database snapshot is still in place"
 
 log "Published. Undo with: deployment/rollback-content.sh"
