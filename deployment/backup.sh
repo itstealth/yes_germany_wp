@@ -43,7 +43,19 @@ if [[ "$USE_DOCKER" == "true" ]]; then
           | gzip -6 > '${DEST}/database.sql.gz'" \
     || die "Database export failed — aborting before any files are touched."
 else
-  remote "cd '${REMOTE_ROOT}' && wp db export - --single-transaction --quick --skip-plugins --skip-themes \
+  # Only this site's tables. The client's database is shared with eleven other
+  # sites — 642 tables, 1,059 MB, of which 178 are ours. An unscoped dump wrote
+  # a copy of other clients' data into this site's backup directory and took
+  # minutes doing it. The prefix comes from the live wp-config, not a guess.
+  PREFIX_LIVE="$(remote "cd '${REMOTE_ROOT}' && wp eval 'global \$wpdb; echo \$wpdb->prefix;' --skip-plugins --skip-themes 2>/dev/null" | tr -d '\r\n')"
+  [[ -n "$PREFIX_LIVE" ]] || die "Could not read the table prefix — refusing to guess at backup scope."
+
+  TABLES="$(remote "cd '${REMOTE_ROOT}' && wp db query \"SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE '${PREFIX_LIVE}%';\" --skip-column-names --skip-plugins --skip-themes 2>/dev/null" | tr -d '\r' | grep -E '^[A-Za-z0-9_]+$' | paste -sd' ' -)"
+  [[ -n "$TABLES" ]] || die "No tables matched prefix '${PREFIX_LIVE}' — refusing to take an empty backup."
+  log "  scoping backup to $(printf '%s\n' $TABLES | wc -l) table(s) with prefix ${PREFIX_LIVE}"
+
+  remote "cd '${REMOTE_ROOT}' && wp db export - --tables='$(printf '%s' "$TABLES" | tr ' ' ',')' \
+            --single-transaction --quick --skip-plugins --skip-themes \
           | gzip -6 > '${DEST}/database.sql.gz'" \
     || die "Database export failed — aborting before any files are touched."
 fi

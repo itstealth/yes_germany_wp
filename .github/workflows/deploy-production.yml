@@ -92,71 +92,69 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      # ----------------------------------------------------------------------
-      # SSH to the OVH host is firewalled from the internet and only reachable
-      # over Tailscale, so the runner joins the tailnet rather than the host
-      # exposing port 22 publicly. Keeping SSH closed is the safer trade.
-      # ----------------------------------------------------------------------
-      # Accepts either credential type. This tailnet is on the Free plan, which
-      # does not offer OAuth clients, so TS_AUTHKEY is the one in use; the OAuth
-      # inputs are left in place so nothing changes if the plan is upgraded.
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
-        with:
-          authkey: ${{ secrets.TS_AUTHKEY }}
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: ${{ vars.TS_TAGS || '' }}
-          version: latest
-
+      # No Tailscale here. Production is the client's cPanel host on a public IP;
+      # only staging lives behind the tailnet.
+      #
+      # In the production environment the DEPLOY_* secrets point at STAGING —
+      # push-content.yml maps secrets.DEPLOY_HOST to STAGING_HOST. This workflow
+      # used them anyway, so a production release was aimed at the staging
+      # server. It never fired only because REMOTE_ROOT was unset and backup.sh
+      # refused. Everything below is explicitly PROD_*.
       - name: Configure SSH
         env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_KNOWN_HOSTS: ${{ secrets.PROD_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           install -d -m 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$PROD_SSH_KEY" > ~/.ssh/prod_deploy_key
+          chmod 600 ~/.ssh/prod_deploy_key
+          printf '%s\n' "$PROD_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Back up database and current release
         id: backup
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-          REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
-          REMOTE_BACKUP_DIR: ${{ secrets.REMOTE_BACKUP_DIR }}
+          DEPLOY_HOST: ${{ secrets.PROD_HOST }}
+          DEPLOY_USER: ${{ secrets.PROD_USER }}
+          DEPLOY_PORT: '22'
+          DEPLOY_SSH_KEY_FILE: /home/runner/.ssh/prod_deploy_key
+          REMOTE_ROOT: ${{ secrets.PROD_ROOT }}
+          REMOTE_BACKUP_DIR: ${{ secrets.PROD_BACKUP_DIR }}
         run: bash deployment/backup.sh production
 
       - name: Deploy managed paths
         id: deploy
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-          REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
+          DEPLOY_HOST: ${{ secrets.PROD_HOST }}
+          DEPLOY_USER: ${{ secrets.PROD_USER }}
+          DEPLOY_PORT: '22'
+          DEPLOY_SSH_KEY_FILE: /home/runner/.ssh/prod_deploy_key
+          REMOTE_ROOT: ${{ secrets.PROD_ROOT }}
+          REMOTE_BACKUP_DIR: ${{ secrets.PROD_BACKUP_DIR }}
         run: bash deployment/deploy.sh production
 
       - name: Health check
         id: health
         if: ${{ !inputs.skip_health_check }}
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-          REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
+          DEPLOY_HOST: ${{ secrets.PROD_HOST }}
+          DEPLOY_USER: ${{ secrets.PROD_USER }}
+          DEPLOY_PORT: '22'
+          DEPLOY_SSH_KEY_FILE: /home/runner/.ssh/prod_deploy_key
+          REMOTE_ROOT: ${{ secrets.PROD_ROOT }}
+          REMOTE_BACKUP_DIR: ${{ secrets.PROD_BACKUP_DIR }}
         run: bash deployment/health-check.sh production https://www.yesgermany.com
 
       - name: Roll back on failure
         if: failure()
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-          REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
+          DEPLOY_HOST: ${{ secrets.PROD_HOST }}
+          DEPLOY_USER: ${{ secrets.PROD_USER }}
+          DEPLOY_PORT: '22'
+          DEPLOY_SSH_KEY_FILE: /home/runner/.ssh/prod_deploy_key
+          REMOTE_ROOT: ${{ secrets.PROD_ROOT }}
+          REMOTE_BACKUP_DIR: ${{ secrets.PROD_BACKUP_DIR }}
           BACKUP_STAMP: ${{ steps.backup.outputs.backup_stamp }}
         run: bash deployment/rollback.sh production
 
