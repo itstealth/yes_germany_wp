@@ -113,16 +113,38 @@ WATERMARK="$(prod "cd '${PROD_ROOT}' && wp option get yg_last_push --skip-plugin
 # push every local timestamp 5.5h ahead of the watermark and block every publish.
 PROD_NEWEST="$(prod "cd '${PROD_ROOT}' && wp db query \"SELECT MAX(post_modified_gmt) FROM ${PREFIX}posts WHERE post_type NOT IN ('revision','awsm_job_application') AND post_status NOT IN ('auto-draft','inherit','trash');\" --skip-column-names 2>/dev/null" | tr -d '\r' | grep -E '^[0-9]{4}-' | head -1)"
 
+# Staging is the single source of truth: a publish makes production match it,
+# and anything edited directly on the live site is replaced. That is deliberate
+# — the alternative is a publish that silently refuses, which is how a change
+# sat unpublished for hours.
+#
+# It is reported rather than hidden. Silently discarding someone's work is how
+# you lose trust in a deploy tool; naming it costs one query.
+#
+# Leads are never at risk: job applications, comments and users are held aside
+# and restored by the apply step, and the delta excludes them entirely.
+#
+# Set BLOCK_ON_PROD_EDITS=true to get the old refuse-to-publish behaviour.
 if [[ -n "$WATERMARK" ]]; then
   log "  last publish:      ${WATERMARK}"
   log "  production newest: ${PROD_NEWEST}"
   if [[ "$PROD_NEWEST" > "$WATERMARK" ]]; then
-    if [[ "${FORCE_PUSH:-false}" == "true" ]]; then
-      warn "Production edited since last publish — proceeding, that work will be lost."
-    else
+    OVERWRITE="$(printf "SELECT p.ID, p.post_type, p.post_status, p.post_modified_gmt, LEFT(p.post_title,46)
+      FROM %sposts p
+      WHERE p.post_modified_gmt > '%s'
+        AND p.post_type NOT IN ('revision','awsm_job_application')
+        AND p.post_status NOT IN ('auto-draft','inherit','trash')
+      ORDER BY p.post_modified_gmt DESC LIMIT 40;\n" "$PREFIX" "$WATERMARK" | prod_sql | tr -d '\r' || true)"
+    N="$(printf '%s\n' "$OVERWRITE" | awk -F'\t' 'NF>1 && $1 ~ /^[0-9]+$/' | grep -c . || true)"
+
+    if [[ "${BLOCK_ON_PROD_EDITS:-false}" == "true" ]]; then
       die "Production was edited directly since the last publish (${PROD_NEWEST} > ${WATERMARK}).
-   Bring it into staging first, or set FORCE_PUSH=true to discard it."
+   Unset BLOCK_ON_PROD_EDITS to let staging overwrite it."
     fi
+
+    warn "${N:-0} item(s) edited directly on the live site will be REPLACED by staging's version:"
+    printf '%s\n' "$OVERWRITE" | awk -F'\t' 'NF>1 {printf "      %-8s %-11s %-9s %s  %s\n", $1, $2, $3, $4, $5}'
+    warn "If any of that should be kept, stop now and bring it into staging first."
   else
     ok "no direct edits on production since last publish"
   fi
