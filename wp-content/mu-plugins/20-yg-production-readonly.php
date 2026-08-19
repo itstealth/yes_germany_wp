@@ -15,8 +15,9 @@
  *     them would be far worse than anything this file prevents.
  *   - Everything outside wp-admin. The filter only applies to admin-side and
  *     REST/AJAX editor requests, never front-end writes.
- *   - Plugin and theme updates, and settings, unless YG_READONLY_SETTINGS is
- *     set. Locking an admin out of security updates is not a safety feature.
+ *   - Plugin and theme updates. Settings ARE locked (YG_ALLOW_LIVE_SETTINGS
+ *     lifts that). Locking an admin out of security updates is not a safety
+ *     feature, so update screens stay reachable.
  *
  * ESCAPE HATCH: define( 'YG_ALLOW_LIVE_EDITS', true ) in wp-config.php to lift
  * this instantly, without a deploy. wp-config.php is not in version control, so
@@ -110,14 +111,33 @@ if ( yg_readonly_active() ) {
 		4
 	);
 
-	// Settings are locked only when asked for. The "Discourage search engines"
-	// tick box lives here, which is worth remembering — but so does every
-	// plugin's configuration.
-	if ( defined( 'YG_READONLY_SETTINGS' ) && YG_READONLY_SETTINGS ) {
+	// Settings are locked too. The "Discourage search engines" tick box lives
+	// behind manage_options, and it being flipped on the live site is exactly
+	// the incident this is meant to prevent.
+	//
+	// Updates are handled by their own capabilities (update_plugins,
+	// update_themes, update_core) and are NOT blocked here, so a locked-down
+	// site can still be patched.
+	//
+	// YG_ALLOW_LIVE_SETTINGS lifts just this part, leaving content locked.
+	if ( ! ( defined( 'YG_ALLOW_LIVE_SETTINGS' ) && YG_ALLOW_LIVE_SETTINGS ) ) {
 		add_filter(
 			'map_meta_cap',
 			function ( $caps, $cap ) {
-				return ( 'manage_options' === $cap && is_admin() ) ? [ 'do_not_allow' ] : $caps;
+				if ( 'manage_options' !== $cap ) {
+					return $caps;
+				}
+				if ( ! is_admin() && ! ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
+					return $caps;
+				}
+				// Let the update screens through; they check update_* caps but
+				// several admin pages gate on manage_options first.
+				global $pagenow;
+				$allow = [ 'update-core.php', 'plugins.php', 'themes.php', 'update.php', 'site-health.php' ];
+				if ( isset( $pagenow ) && in_array( $pagenow, $allow, true ) ) {
+					return $caps;
+				}
+				return [ 'do_not_allow' ];
 			},
 			10,
 			2
