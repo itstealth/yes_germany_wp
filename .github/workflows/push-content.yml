@@ -86,6 +86,56 @@ jobs:
           { printf '%s\n' "$STAGING_KNOWN_HOSTS"; printf '%s\n' "$PROD_KNOWN_HOSTS"; } > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
+      # The publish transfers run FROM staging, against staging's OWN known_hosts
+      # — not the runner's. Updating the PROD_KNOWN_HOSTS secret alone does not
+      # reach it, so after the server moved on 2026-08-28 a publish got all the
+      # way past approval and died at "Push content" with "scp: Connection
+      # closed". Staging's copy was hand-maintained and nothing kept it in sync.
+      # Now one secret is the single source of truth for both sides.
+      - name: Trust production from staging
+        env:
+          PROD_KNOWN_HOSTS: ${{ secrets.PROD_KNOWN_HOSTS }}
+          STAGING_HOST: ${{ secrets.DEPLOY_HOST }}
+          STAGING_USER: ${{ secrets.DEPLOY_USER }}
+          STAGING_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          set -euo pipefail
+          # Appended, never overwritten: staging's known_hosts also pins hosts
+          # this workflow knows nothing about. Stale entries for a dead server
+          # are harmless, so they are left alone rather than pruned blind.
+          printf '%s\n' "$PROD_KNOWN_HOSTS" | ssh -i ~/.ssh/deploy_key \
+            -p "$STAGING_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=20 "${STAGING_USER}@${STAGING_HOST}" '
+              set -eu
+              mkdir -p ~/.ssh && chmod 700 ~/.ssh
+              touch ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+              added=0
+              while IFS= read -r line; do
+                [ -z "$line" ] && continue
+                if ! grep -qxF "$line" ~/.ssh/known_hosts; then
+                  printf "%s\n" "$line" >> ~/.ssh/known_hosts
+                  added=$((added+1))
+                fi
+              done
+              echo "host keys added to staging: ${added}"
+            '
+
+      # Every reason a publish has failed since 2026-08-29 is checked here, by
+      # name, before anyone is asked to approve anything. A failure now costs a
+      # re-run; the same failure after approval costs a half-applied publish and
+      # an afternoon reading logs.
+      - name: Preflight
+        env:
+          STAGING_HOST: ${{ secrets.DEPLOY_HOST }}
+          STAGING_USER: ${{ secrets.DEPLOY_USER }}
+          STAGING_PORT: ${{ secrets.DEPLOY_PORT }}
+          STAGING_SSH_KEY_FILE: /home/runner/.ssh/deploy_key
+          PROD_SSH_KEY_FILE: /home/runner/.ssh/prod_deploy_key
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_ROOT: ${{ secrets.PROD_ROOT }}
+        run: bash deployment/preflight.sh
+
       # Runs before the approval gate so the approver can see the actual list of
       # pages being published, rather than approving a blank cheque. A dry run
       # writes nothing.
@@ -107,8 +157,13 @@ jobs:
           bash deployment/push-fast.sh --dry-run 2>&1 | tee /tmp/preview.txt
           # Strip ANSI colour so the text is readable inside a GitHub issue.
           sed -e 's/\x1b\[[0-9;]*m//g' /tmp/preview.txt > /tmp/preview.clean
-          sed -n '/changed item(s) since\|no content changes since/,$p' /tmp/preview.clean \
-            | grep -v 'Dry run complete' | head -70 > /tmp/manifest.txt
+          # Starts at whichever line opens the manifest and keeps everything
+          # after it, so the per-table row counts land in the issue too. Those
+          # counts are the only part that reflects metadata edits — alt text and
+          # SEO fields never move a post's timestamp, so the list above them can
+          # be empty while the publish still has real work to do.
+          sed -n '/changed item(s) since\|no post or page timestamps changed/,$p' /tmp/preview.clean \
+            | grep -v 'Dry run complete\|Dry run: skipping' | head -70 > /tmp/manifest.txt
           [ -s /tmp/manifest.txt ] || echo "(could not read the change list from staging — check the log above)" > /tmp/manifest.txt
           {
             echo 'manifest<<PREVIEW_EOF'

@@ -88,7 +88,22 @@ assert_backup_dir_safe() {
 # hardcode ~/.ssh/deploy_key for both, so on a CI runner — where that file is the
 # STAGING key — every SSH-based production check failed with "Permission denied"
 # and turned a publish that had actually succeeded into a red run.
+# One control socket per shell, shared by every ssh/scp call below. The cPanel
+# host rate-limits new connections — a health check that opens a fresh one per
+# probe starts timing out around the fourth — and push-fast.sh already multiplexes
+# for the same reason. Created lazily so sourcing lib.sh costs nothing.
+YG_CM_DIR="${YG_CM_DIR:-${TMPDIR:-/tmp}/yg-cm-lib-$$}"
+cleanup_lib_cm() {
+  [[ -d "$YG_CM_DIR" ]] || return 0
+  for s in "$YG_CM_DIR"/*; do
+    [[ -S "$s" ]] && ssh -O exit -o ControlPath="$s" x 2>/dev/null || true
+  done
+  rm -rf "$YG_CM_DIR" 2>/dev/null || true
+}
+trap cleanup_lib_cm EXIT
+
 ssh_opts() {
+  mkdir -p "$YG_CM_DIR" 2>/dev/null && chmod 700 "$YG_CM_DIR" 2>/dev/null
   local key="${DEPLOY_SSH_KEY_FILE:-}"
   if [[ -z "$key" ]]; then
     if [[ "${ENVIRONMENT:-}" == "production" && -f "${HOME}/.ssh/prod_deploy_key" ]]; then
@@ -99,7 +114,10 @@ ssh_opts() {
   fi
   local key_opt=""
   [[ -n "$key" && -f "$key" ]] && key_opt="-i ${key}"
-  echo "${key_opt} -p ${DEPLOY_PORT} -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15"
+  # AddressFamily=inet: production's hostname has an AAAA record and CI has no
+  # IPv6 route; without it ssh picks v6 and fails with "Network is unreachable".
+  echo "${key_opt} -p ${DEPLOY_PORT} -o AddressFamily=inet -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 \
+        -o ControlMaster=auto -o ControlPath=${YG_CM_DIR}/%C -o ControlPersist=120"
 }
 
 remote() {

@@ -32,7 +32,11 @@ PROD_USER="${PROD_USER:?PROD_USER required}"
 PROD_ROOT="${PROD_ROOT:?PROD_ROOT required}"
 PREFIX="${TABLE_PREFIX:-wpb9_}"
 PROD_KEY="${PROD_SSH_KEY_FILE:-${HOME}/.ssh/prod_deploy_key}"
-SSHB="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15"
+# AddressFamily=inet: production's hostname carries an AAAA record, and GitHub
+# runners have no IPv6 route. Without this, ssh picks the v6 address and dies
+# with "Network is unreachable" — which is how the 2026-09-01 health check failed
+# after a publish that had already succeeded.
+SSHB="-o AddressFamily=inet -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15"
 
 CONTENT_TABLES="posts postmeta terms termmeta term_taxonomy term_relationships"
 SNAP="${PREFIX}ygsnap_"
