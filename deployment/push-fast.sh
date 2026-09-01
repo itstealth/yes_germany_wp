@@ -181,13 +181,18 @@ CHANGED_IDS="$(printf '%s\n' "$MANIFEST" | awk -F'\t' 'NF>1 && $1 ~ /^[0-9]+$/ {
 CHANGED_N="$(printf '%s\n' "$CHANGED_IDS" | grep -c . || true)"
 
 if [[ "${CHANGED_N:-0}" -eq 0 ]]; then
-  warn "staging has no content changes since ${SINCE} — this publish would carry nothing new"
+  # Deliberately not "carries nothing new". This count comes from
+  # post_modified_gmt, which alt text, SEO fields, taxonomy terms and anything
+  # else a plugin writes straight to postmeta do not touch. Saying "nothing new"
+  # here sent someone away believing their alt-text work was already live when
+  # it was sitting on staging. The row-level comparison below is the honest
+  # answer; this line only ever describes posts.
+  warn "no post or page timestamps changed since ${SINCE}"
+  warn "metadata edits (alt text, SEO fields, taxonomy) do not move timestamps and are not listed above"
 else
   log "Publishing ${CHANGED_N} changed item(s) since ${SINCE}:"
   printf '%s\n' "$MANIFEST" | awk -F'\t' 'NF>1 {printf "      %-8s %-12s %-9s %s  %s\n", $1, $2, $3, $4, $5}'
 fi
-
-$DRY_RUN && { log "Dry run complete."; exit 0; }
 
 # ---------------------------------------------------------------------------
 # 3. Snapshot production — only the tables this publish replaces.
@@ -210,6 +215,9 @@ CONTENT_TABLES="posts postmeta terms termmeta term_taxonomy term_relationships"
 SNAP="${PREFIX}ygsnap_"
 BDIR="${PROD_BACKUP_DIR}/${STAMP}"
 
+if $DRY_RUN; then
+  log "Dry run: skipping the production snapshot (nothing will be written)"
+else
 log "Snapshotting the tables this publish replaces"
 {
   # WordPress columns like posts.post_date carry DEFAULT '0000-00-00 00:00:00',
@@ -245,6 +253,7 @@ while IFS=: read -r t live snapped; do
 done <<< "$SNAP_CHECK"
 [[ -z "${BAD// /}" ]] || die "Snapshot incomplete:${BAD} — nothing was changed."
 ok "snapshot taken ($(printf '%s\n' "$SNAP_CHECK" | awk -F: '{s+=$2} END {print s}') rows, in-database)"
+fi
 
 # ---------------------------------------------------------------------------
 # 4. Dump content on staging, into a file on staging
@@ -346,6 +355,28 @@ if [[ "${PUSH_MODE:-diff}" == "diff" ]]; then
   fi
   prod "rm -f '${P_SUMS}'" || true
   stg  "rm -f '${S_SUMS}' /tmp/_yg_content_delta-${STAMP}.sh" || true
+fi
+
+# ---------------------------------------------------------------------------
+# The dry run stops HERE — after the row-level comparison, not before it.
+#
+# It used to exit right after the timestamp manifest, which meant an alt-text or
+# SEO-metadata edit was reported as "nothing new" while a real publish would
+# have carried it: those live in postmeta and never move post_modified_gmt.
+# The approver was being shown a list that was not what the publish would do.
+#
+# Nothing above this point writes content. The snapshot is skipped on a dry run,
+# and the checksum files are temporary and already removed.
+# ---------------------------------------------------------------------------
+if $DRY_RUN; then
+  [[ -n "${DELTA:-}" ]] && stg "rm -f '${DELTA}'" 2>/dev/null || true
+  if [[ "${MODE:-full}" == "delta" ]]; then
+    ok "the row counts above are what a real publish would write"
+  else
+    warn "no row-level comparison available — a real publish would copy all six content tables"
+  fi
+  log "Dry run complete. Nothing was written."
+  exit 0
 fi
 
 if [[ "$MODE" != "delta" ]]; then
