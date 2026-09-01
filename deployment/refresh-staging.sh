@@ -47,7 +47,11 @@ PREFIX="${TABLE_PREFIX:-wpb9_}"
 
 STG_KEY="${STAGING_SSH_KEY_FILE:-${HOME}/.ssh/deploy_key}"
 PROD_KEY="${PROD_SSH_KEY_FILE:-${HOME}/.ssh/prod_deploy_key}"
-SSH_BASE="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=20"
+# AddressFamily=inet: production's hostname carries an AAAA record, and GitHub
+# runners have no IPv6 route. Without this, ssh picks the v6 address and dies
+# with "Network is unreachable" — which is how the 2026-09-01 health check failed
+# after a publish that had already succeeded.
+SSH_BASE="-o AddressFamily=inet -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=20"
 
 # -n on the query variants: ssh reads stdin, and inside "$( )" that swallows the
 # script's input and returns an empty string.

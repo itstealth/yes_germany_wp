@@ -29,7 +29,7 @@ server's `.env`.
 
 | | Production | Staging |
 |---|---|---|
-| Host | Client cPanel (OVH, `148.113.25.152`) | Your OVH Docker host |
+| Host | Client cPanel (Cloudexter, `d601.bom.secure-web.cloud`) | Your OVH Docker host |
 | URL | `https://www.yesgermany.com` | `https://yg-staging.stealthlearn.in` |
 | Stack | LiteSpeed + PHP 8.2 | nginx + php-fpm 8.2 + MySQL 8 |
 | Database | `yesgermanycom_fdkf` (`wpb9_`) | `yg_staging` (`wpb9_`) |

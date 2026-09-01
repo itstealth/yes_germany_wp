@@ -38,7 +38,11 @@ PREFIX="${TABLE_PREFIX:-wpb9_}"
 
 STG_KEY="${STAGING_SSH_KEY_FILE:-${HOME}/.ssh/deploy_key}"
 PROD_KEY="${PROD_SSH_KEY_FILE:-${HOME}/.ssh/prod_deploy_key}"
-SSHB="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15"
+# AddressFamily=inet: production's hostname carries an AAAA record, and GitHub
+# runners have no IPv6 route. Without this, ssh picks the v6 address and dies
+# with "Network is unreachable" — which is how the 2026-09-01 health check failed
+# after a publish that had already succeeded.
+SSHB="-o AddressFamily=inet -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15"
 
 # Reuse one connection per host for every command in this run.
 #
@@ -307,7 +311,7 @@ if [[ "${PUSH_MODE:-diff}" == "diff" ]]; then
     ok "production checksums: ${P_ROWS} rows ($(prod "du -h '${P_SUMS}' | cut -f1"))"
 
     # Staging pulls. Production cannot reach staging — it is not on the tailnet.
-    if stg "scp -q -i ~/.ssh/prod_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+    if stg "scp -q -i ~/.ssh/prod_deploy_key -o AddressFamily=inet -o BatchMode=yes -o StrictHostKeyChecking=yes \
               '${PROD_USER}@${PROD_HOST}:${P_SUMS}' '${S_SUMS}'"; then
       scp -q -i "$STG_KEY" -P "$STG_PORT" $SSHB "${SCRIPT_DIR}/content-delta.sh" \
           "${STG_USER}@${STG_HOST}:/tmp/_yg_content_delta-${STAMP}.sh"
@@ -364,7 +368,7 @@ fi
 log "Sending to production (direct)"
 SENT=false
 for a in 1 2 3; do
-  if stg "scp -q -i ~/.ssh/prod_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+  if stg "scp -q -i ~/.ssh/prod_deploy_key -o AddressFamily=inet -o BatchMode=yes -o StrictHostKeyChecking=yes \
             '${STG_FILE}' '${PROD_USER}@${PROD_HOST}:${REMOTE_SQL}'"; then
     if prod "gzip -t '${REMOTE_SQL}'"; then SENT=true; ok "sent and verified (attempt ${a})"; break; fi
     warn "arrived corrupt, retrying"
