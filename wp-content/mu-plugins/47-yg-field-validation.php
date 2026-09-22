@@ -291,11 +291,65 @@ function yg_field_validation_script() {
 			return '';
 		}
 
+		/**
+		 * The rule as a native `pattern`, which is the only part CF7 cannot undo.
+		 *
+		 * Contact Form 7 6.x runs its own client-side validation on every
+		 * change and calls setCustomValidity( '' ) on any field its schema
+		 * considers valid. It knows nothing of these rules, so it cleared every
+		 * message this script set - the field went back to valid and the form
+		 * submitted. Verified on the live site: the browser was reporting CF7's
+		 * wording, not ours.
+		 *
+		 * `pattern` is a native constraint. setCustomValidity( '' ) does not
+		 * touch validity.patternMismatch, so the block survives whatever CF7
+		 * does afterwards. The message still comes from setCustomValidity when
+		 * it survives, and from `title` when it does not.
+		 */
+		function applyPattern( field ) {
+			var n = field.name || '';
+
+			if ( RULE_PHONE.test( n ) ) {
+				var cc = dialCode( field );
+				if ( '+91' === cc || '91' === cc ) {
+					field.pattern = '[6-9][0-9]{9}';
+					field.title   = 'Enter a 10-digit Indian mobile number starting with 6, 7, 8 or 9.';
+				} else {
+					field.pattern = '[0-9]{7,12}';
+					field.title   = 'Enter a valid mobile number for the country you selected.';
+				}
+				return;
+			}
+			if ( RULE_NAME.test( n ) && ! NOT_NAME.test( n ) ) {
+				/* Two characters minimum, English letters and the punctuation
+				   real names use. Implicitly anchored by the browser. */
+				field.pattern = "[A-Za-z][A-Za-z .'\\-]+";
+				field.title   = 'Use English letters only - no numbers or symbols.';
+				return;
+			}
+			if ( RULE_MAIL.test( n ) || 'email' === field.type ) {
+				field.pattern = "[^@\\s]+@[^@\\s]+\\.[A-Za-z]{2,}";
+				field.title   = 'Enter a valid email address, for example name@example.com.';
+			}
+		}
+
 		function check( field ) {
 			if ( ! field || ! field.setCustomValidity ) {
 				return;
 			}
+			applyPattern( field );
 			field.setCustomValidity( problem( field ) );
+
+			/*
+			 * And again after CF7 has had its turn. Its change handler
+			 * validates on a promise, so a macrotask lands after it and the
+			 * message survives; the pattern would have held regardless.
+			 */
+			setTimeout( function () {
+				if ( document.contains( field ) ) {
+					field.setCustomValidity( problem( field ) );
+				}
+			}, 0 );
 		}
 
 		/* Validate as the visitor types and when they leave the field, so the
