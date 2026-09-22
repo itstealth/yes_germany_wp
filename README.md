@@ -52,7 +52,9 @@ PHP is pinned to **8.2 on both sides**. Do not raise it: the site runs
 
 1. **CI** — PHP 8.2 lint on every file, `composer validate`, a check that no
    secret or SQL dump was committed, a check for world-writable files, and a
-   check that the analytics and CRM modules still carry their production guard.
+   check that the analytics and CRM modules still carry their production guard,
+   and a check that no site-wide form `submit` listener has come back — the CRM
+   is fed only by the final validated submission.
 2. **Staging** — deploys automatically once CI passes, then health-checks itself
    and rolls back if the check fails.
 3. **Production** — `workflow_dispatch` only. You must type `DEPLOY`, and the
