@@ -108,11 +108,36 @@ jobs:
       - name: Environment-gated code must stay gated
         # These two modules write to live systems (GA4/Google Ads and the CRM).
         # If the production guard is ever dropped, staging starts polluting them.
+        #
+        # The CRM push moved out of the child theme into a must-use plugin:
+        # production runs the parent theme, so child-theme code never ran there.
         run: |
           set -euo pipefail
-          for f in analytics lead-capture; do
-            path="wp-content/themes/zakra-child/inc/${f}.php"
+          paths=(
+            wp-content/themes/zakra-child/inc/analytics.php
+            wp-content/mu-plugins/45-yg-lead-crm-push.php
+          )
+          for path in "${paths[@]}"; do
+            test -f "$path" || { echo "::error::$path is missing."; exit 1; }
             grep -q 'yg_is_production' "$path" \
               || { echo "::error file=$path::lost its production guard."; exit 1; }
           done
-          echo "Analytics and lead capture are still production-gated."
+          echo "Analytics and the CRM push are still production-gated."
+
+      - name: No site-wide form listener may return
+        # The CRM must be fed by completed, validated submissions only. A
+        # document-level "submit" listener sees every form on the site and fires
+        # before anything has validated, which is what put leads carrying only
+        # contact details into the CRM.
+        #
+        # A listener bound to one form element is fine and is used deliberately:
+        # the Elementor bridge snapshots that form's values on submit and only
+        # sends them once Elementor reports success.
+        run: |
+          set -euo pipefail
+          if grep -rn "document\.addEventListener( *[\"']submit" \
+               wp-content/themes/zakra-child wp-content/mu-plugins; then
+            echo "::error::A site-wide submit listener is back. Bind to CF7's wpcf7submit event or to one form."
+            exit 1
+          fi
+          echo "No site-wide submit listener."

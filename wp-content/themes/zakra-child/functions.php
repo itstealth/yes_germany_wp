@@ -46,5 +46,18 @@ add_action( 'wp_enqueue_scripts', 'yg_child_enqueue_styles' );
  * ---------------------------------------------------------------------------
  */
 require_once get_stylesheet_directory() . '/inc/analytics.php';
-require_once get_stylesheet_directory() . '/inc/lead-capture.php';
 require_once get_stylesheet_directory() . '/inc/sockets-js-fix.php';
+
+/*
+ * Lead capture is deliberately NOT here any more.
+ *
+ * inc/lead-capture.php printed a site-wide JavaScript submit listener that
+ * POSTed every form on the site to the CRM - including each step of a
+ * multi-step form and submissions that then failed validation, which is how
+ * leads holding nothing but a name, email and phone were created. It is
+ * replaced by wp-content/mu-plugins/45-yg-lead-crm-push.php, which sends once
+ * from PHP on the final validated submission.
+ *
+ * A must-use plugin rather than theme code because production runs the PARENT
+ * theme, zakra: nothing in this child theme executes there.
+ */
