@@ -191,7 +191,16 @@ function yg_lead_api_browser_script() {
 			}
 		} catch ( e ) {}
 
-		document.addEventListener( 'wpcf7submit', function ( e ) {
+		/*
+		 * Both events. `wpcf7mailsent` is dispatched first, so this gets its
+		 * chance before wpcf7-redirect navigates; `wpcf7submit` still covers
+		 * mail_failed, where the lead is complete but the notification did not
+		 * leave. The unitTag guard keeps it to one send either way.
+		 */
+		document.addEventListener( 'wpcf7mailsent', handleCf7 );
+		document.addEventListener( 'wpcf7submit', handleCf7 );
+
+		function handleCf7( e ) {
 			var d = e.detail || {};
 
 			if ( ! COMPLETE[ d.status ] ) {
@@ -225,7 +234,7 @@ function yg_lead_api_browser_script() {
 			} catch ( err ) {}
 
 			post( payload );
-		}, false );
+		}
 
 		/*
 		 * Elementor Pro forms.
@@ -392,13 +401,56 @@ function yg_lead_api_browser_script() {
 			return payload;
 		}
 
+		/**
+		 * sendBeacon with form encoding, because the lead has to survive the
+		 * redirect.
+		 *
+		 * Contact Form 7 dispatches `wpcf7mailsent` BEFORE `wpcf7submit`, and
+		 * wpcf7-redirect navigates to /thank-you/ on mailsent. By the time this
+		 * ran the page was already unloading and the fetch - keepalive or not -
+		 * was killed mid-flight. Measured on the live site: sent directly, the
+		 * CRM created a lead every time; of 30 real form submissions it created
+		 * none, and of 10 slower ones only 7.
+		 *
+		 * sendBeacon exists for exactly this: the browser takes ownership of the
+		 * request and completes it after the page is gone.
+		 *
+		 * It cannot carry an application/json content type - that is not
+		 * CORS-safelisted, so it would need a preflight, which sendBeacon cannot
+		 * perform, and the request is dropped in silence. URLSearchParams sends
+		 * application/x-www-form-urlencoded, which is safelisted. The CRM parses
+		 * it and returns a crm_lead_id - verified against the live endpoint
+		 * before this was written.
+		 */
 		function post( payload ) {
 			payload = withFullPhone( payload );
+
+			var params = new URLSearchParams();
+			for ( var k in payload ) {
+				if ( Object.prototype.hasOwnProperty.call( payload, k ) ) {
+					var v = payload[ k ];
+					params.append( k, ( null === v || undefined === v ) ? '' : String( v ) );
+				}
+			}
+
+			var queued = false;
+			try {
+				if ( navigator.sendBeacon ) {
+					queued = navigator.sendBeacon( API_URL, params );
+				}
+			} catch ( err ) {}
+
+			if ( queued ) {
+				return;
+			}
+
+			/* No sendBeacon, or it refused the payload: the same encoding over
+			   fetch, so this path needs no preflight either. */
 			try {
 				fetch( API_URL, {
 					method:    'POST',
-					headers:   { 'Content-Type': 'application/json' },
-					body:      JSON.stringify( payload ),
+					headers:   { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+					body:      params.toString(),
 					keepalive: true
 				} ).catch( function () {} );
 			} catch ( err ) {}
