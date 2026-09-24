@@ -184,9 +184,15 @@ The must-use plugin `00-yg-environment.php` makes staging inert:
   live.
 
 Staging holds its own copy of the media library (64,549 files), so images
-uploaded there travel to production with the next content push. The media sync
-is additive (`--skip-old-files`), so a push can never delete existing production
-media.
+uploaded there travel to production with the next content push.
+`deployment/media-sync.sh` compares the dated media folders on both servers and
+sends only the files production lacks, before the content that uses them. It
+only adds files: a push can never overwrite or delete existing production media.
+Zips, `.php` and other non-media files in `uploads/` never travel.
+
+Staging keeps upload URLs on its own domain. Its nginx serves a file locally when
+it has it and reads through to production when it does not, and the push rewrites
+staging URLs to production ones.
 
 `harden-staging.sh` also disables nine plugins that would otherwise reach the
 client's live third-party accounts — Site Kit, MonsterInsights, Microsoft UET,

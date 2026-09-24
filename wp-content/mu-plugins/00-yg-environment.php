@@ -4,7 +4,7 @@
  * Description: Environment safety rails. On any non-production install this blocks
  *              outbound email, hides the site from search engines, and marks the
  *              admin UI, so a copy of production data can never reach real people.
- * Version:     1.1.0
+ * Version:     1.2.0
  * Author:      Stealth Digital
  *
  * Loaded as a must-use plugin so it cannot be deactivated from wp-admin, and
@@ -104,28 +104,17 @@ add_action(
 	100
 );
 
-/**
- * Serve uploads from production when they are missing locally.
+/*
+ * Upload URLs are deliberately NOT rewritten to production.
  *
- * Staging holds no uploads directory (3.5 GB / 64k files on production), so
- * attachment URLs are rewritten to the live CDN/origin for reading only.
- * Nginx also proxies these at the edge; this filter covers URLs generated in
- * PHP, such as srcset entries.
+ * An upload_dir filter here used to point every upload URL at
+ * www.yesgermany.com, including files uploaded on staging that exist only on
+ * staging's disk. Those rendered as broken images on staging, and the wrong URL
+ * was saved into Elementor data and attachment rows. The /expert-team/ page lost
+ * two images this way on 2026-09-24.
  *
- * Defined in wp-config.php as YG_UPLOADS_PROXY, e.g. https://www.yesgermany.com
+ * Nothing is lost by leaving URLs on the staging domain: staging nginx serves a
+ * file locally when it has it and reads through to production when it does not
+ * (docker/nginx/default.conf), and deployment/push-fast.sh rewrites staging URLs
+ * to production ones and copies the missing files on publish.
  */
-if ( defined( 'YG_UPLOADS_PROXY' ) && YG_UPLOADS_PROXY ) {
-
-	add_filter(
-		'upload_dir',
-		function ( $dirs ) {
-			$local = wp_parse_url( $dirs['baseurl'], PHP_URL_PATH );
-			if ( $local ) {
-				$dirs['baseurl'] = rtrim( YG_UPLOADS_PROXY, '/' ) . $local;
-				$dirs['url']     = rtrim( YG_UPLOADS_PROXY, '/' ) . wp_parse_url( $dirs['url'], PHP_URL_PATH );
-			}
-			return $dirs;
-		},
-		PHP_INT_MAX
-	);
-}

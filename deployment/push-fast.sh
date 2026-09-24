@@ -358,6 +358,44 @@ if [[ "${PUSH_MODE:-diff}" == "diff" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# 4b. Which media files does production not have?
+#
+# The tables carry attachment rows, not the files behind them. Without this, an
+# image uploaded on staging went live as a broken link — the page pointed at a
+# file that only existed on the staging server.
+#
+# Planned here so the dry run shows it; copied after the dry-run gate. Files are
+# only ever added to production, never overwritten or deleted.
+#
+# A failure stops the publish: content that references files live does not have
+# is exactly the breakage this step exists to prevent. SKIP_MEDIA=true skips it.
+# ---------------------------------------------------------------------------
+MEDIA_N=0
+MEDIA_LIST="/tmp/yg-media-${STAMP}.txt"
+MEDIA_SH="/tmp/_yg_media_sync-${STAMP}.sh"
+MEDIA_ARGS="'${STG_DIR}/wordpress/wp-content/uploads' '${PROD_USER}@${PROD_HOST}' '${PROD_ROOT}/wp-content/uploads' '${MEDIA_LIST}'"
+
+if [[ "${SKIP_MEDIA:-false}" == "true" ]]; then
+  warn "SKIP_MEDIA=true — media files will not be copied"
+else
+  log "Finding media production does not have"
+  scp -q -i "$STG_KEY" -P "$STG_PORT" $SSHB "${SCRIPT_DIR}/media-sync.sh" "${STG_USER}@${STG_HOST}:${MEDIA_SH}" \
+    || die "Could not send media-sync.sh to staging. Nothing was changed."
+  MPLAN="$(stg "bash '${MEDIA_SH}' plan ${MEDIA_ARGS}" 2>&1)" \
+    || die "Could not compare media with production. Nothing was changed.
+$(printf '%s\n' "$MPLAN" | sed 's/^/    /')"
+  MEDIA_N="$(printf '%s\n' "$MPLAN" | awk '/^MEDIA /{for(i=1;i<=NF;i++) if($i ~ /^files=/){sub(/files=/,"",$i); print $i}}')"
+  MEDIA_B="$(printf '%s\n' "$MPLAN" | awk '/^MEDIA /{for(i=1;i<=NF;i++) if($i ~ /^bytes=/){sub(/bytes=/,"",$i); print $i}}')"
+  if [[ "${MEDIA_N:-0}" -eq 0 ]]; then
+    ok "production already has every media file"
+  else
+    log "Copying ${MEDIA_N} media file(s) production lacks ($(( ${MEDIA_B:-0} / 1024 )) KB):"
+    printf '%s\n' "$MPLAN" | sed -n 's/^FILE /      /p'
+    [[ "$MEDIA_N" -gt 40 ]] && log "      … and $(( MEDIA_N - 40 )) more"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # The dry run stops HERE — after the row-level comparison, not before it.
 #
 # It used to exit right after the timestamp manifest, which meant an alt-text or
@@ -370,6 +408,7 @@ fi
 # ---------------------------------------------------------------------------
 if $DRY_RUN; then
   [[ -n "${DELTA:-}" ]] && stg "rm -f '${DELTA}'" 2>/dev/null || true
+  stg "rm -f '${MEDIA_LIST}' '${MEDIA_SH}'" 2>/dev/null || true
   if [[ "${MODE:-full}" == "delta" ]]; then
     ok "the row counts above are what a real publish would write"
   else
@@ -378,6 +417,22 @@ if $DRY_RUN; then
   log "Dry run complete. Nothing was written."
   exit 0
 fi
+
+# ---------------------------------------------------------------------------
+# 4c. Copy the media first, so no published page ever points at a file that has
+# not arrived yet. Adding files changes nothing a visitor sees until the
+# content that uses them lands, so a failure here still leaves live untouched.
+# ---------------------------------------------------------------------------
+if [[ "${MEDIA_N:-0}" -gt 0 ]]; then
+  log "Copying media to production (direct)"
+  MCOPY="$(stg "bash '${MEDIA_SH}' copy ${MEDIA_ARGS}" 2>&1)" || {
+    printf '%s\n' "$MCOPY" | grep -E '^(FAILED|MEDIA)' | sed 's/^/    /'
+    stg "rm -f '${STG_FILE}' '${MEDIA_LIST}' '${MEDIA_SH}'" || true
+    die "Media copy incomplete — content was not published. Re-run, or SKIP_MEDIA=true to publish without it."
+  }
+  ok "$(printf '%s\n' "$MCOPY" | grep '^MEDIA ' | sed 's/^MEDIA //')"
+fi
+[[ "${SKIP_MEDIA:-false}" == "true" ]] || stg "rm -f '${MEDIA_LIST}' '${MEDIA_SH}'" || true
 
 if [[ "$MODE" != "delta" ]]; then
   log "Dumping content on staging (full copy)"
