@@ -6,7 +6,7 @@
  *              LMS API key in the page source. Those forms now post to
  *              /wp-json/yg/v1/lms-lead; this adds the key from wp-config.php and
  *              forwards the lead unchanged, so the key never reaches the browser.
- * Version:     1.0.0
+ * Version:     1.0.1
  * Author:      YES Germany
  */
 
@@ -42,7 +42,8 @@ const YG_LMS_RELAY_ROUTE     = '/lms-lead';
  * whether the lead is accepted.
  */
 function yg_lms_relay_origins() {
-	$origins = array( 'https://dubai.yesgermany.com' );
+	// dubai answers on both hostnames without redirecting, so both are listed.
+	$origins = array( 'https://dubai.yesgermany.com', 'https://www.dubai.yesgermany.com' );
 
 	$home = wp_parse_url( home_url() );
 	if ( ! empty( $home['host'] ) ) {
