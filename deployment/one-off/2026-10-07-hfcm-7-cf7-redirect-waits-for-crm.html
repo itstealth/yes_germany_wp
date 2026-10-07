@@ -1,0 +1,110 @@
+<!-- CF7: lock the submit button while sending, then go to the Thank You page -->
+<style>
+/* CF7's own "Thank you for your message" strip must never flash before the
+   redirect. Keyed to yg-ty-done, which only the success handler adds - so if
+   JavaScript fails the message stays visible as the visitor's only feedback. */
+.yg-ty-done .wpcf7-response-output{display:none!important}
+
+/* While a submission is in flight the button reads "Submitting..." and cannot
+   be clicked again. pointer-events covers the case where a browser lets a
+   click through to a disabled control's label. */
+.wpcf7-form.yg-submitting .wpcf7-submit{
+  pointer-events:none!important;cursor:wait!important;opacity:.75!important}
+</style>
+<script>
+(function () {
+  var LOCK = 'yg-submitting';
+  var BUSY = 'Submitting…';
+
+  function submitButton(form) {
+    return form.querySelector('.wpcf7-submit, input[type="submit"], button[type="submit"]');
+  }
+  function setLabel(btn, text) {
+    if (!btn) { return; }
+    if ('INPUT' === btn.tagName) { btn.value = text; } else { btn.textContent = text; }
+  }
+
+  function lock(form) {
+    var btn = submitButton(form);
+    if (!btn || form.classList.contains(LOCK)) { return; }
+    form.classList.add(LOCK);
+    btn.setAttribute('data-yg-label', 'INPUT' === btn.tagName ? btn.value : btn.textContent);
+    btn.setAttribute('aria-busy', 'true');
+    btn.disabled = true;
+    setLabel(btn, BUSY);
+  }
+
+  function unlock(form) {
+    var btn = submitButton(form);
+    form.classList.remove(LOCK);
+    if (!btn) { return; }
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    var was = btn.getAttribute('data-yg-label');
+    if (was !== null) { setLabel(btn, was); btn.removeAttribute('data-yg-label'); }
+  }
+
+  /* Capture phase, so this runs before CF7's own submit handler. A second
+     click while locked never reaches CF7 at all. */
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form || !form.classList || !form.classList.contains('wpcf7-form')) { return; }
+    if (form.classList.contains(LOCK)) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+    lock(form);
+  }, true);
+
+  /* Anything other than success hands the form back to the visitor. */
+  ['wpcf7invalid', 'wpcf7spam', 'wpcf7mailfailed', 'wpcf7unaccepted'].forEach(function (name) {
+    document.addEventListener(name, function (e) { if (e.target && e.target.classList) { unlock(e.target); } }, false);
+  });
+
+  document.addEventListener('wpcf7mailsent', function (event) {
+    var form = event.target;
+    if (!form || !form.classList) { return; }
+
+    /* Run once per submission - CF7 fires this more than once here. */
+    if (form.classList.contains('yg-ty-done')) { return; }
+    form.classList.add('yg-ty-done');
+    lock(form);   /* stays locked: the page is about to leave */
+
+    /* Per-form destination. The influencer campaign form has its own Thank You
+       page carrying the visitor's discount code; every other form keeps the
+       shared one. Keyed on the CF7 post id, which is stable - the shortcode
+       hash is not the id and is not exposed on this event. */
+    var TARGETS = { '139425': '/thank-you-influencer/' };
+    var formId = String(event.detail ? event.detail.contactFormId : '');
+    var TARGET = TARGETS[formId] || '/thank-you/';
+
+    var gone = false;
+    function go() {
+      if (gone) { return; }
+      gone = true;
+      window.location.href = TARGET;
+    }
+
+    /* Surface the submission in GTM before navigating. This is NOT the Google
+       Ads conversion - that fires on arrival at /thank-you/, deliberately. */
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      'event': 'cf7_form_submit',
+      'cf7FormId': event.detail ? event.detail.contactFormId : '',
+      'pagePath': window.location.pathname
+    });
+
+    /* Wait for the CRM's answer before leaving, so the browser can record it
+       (mu-plugin 45 sets window.ygLeadPending and mu-plugin 57 stores the
+       answer). Never more than 2.5 s; the CRM answers in ~0.13 s. The check
+       runs after 50 ms, by which time 45's handler - registered after this
+       one - has started the send. */
+    setTimeout(function () {
+      var pending = window.ygLeadPending;
+      if (pending && typeof pending.then === 'function') {
+        pending.then(go, go);
+        setTimeout(go, 2500);
+      } else {
+        go();
+      }
+    }, 50);
+  }, false);
+})();
+</script>

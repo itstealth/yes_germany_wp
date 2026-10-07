@@ -418,26 +418,55 @@ function yg_lead_api_browser_script() {
 		}
 
 		/**
-		 * sendBeacon with form encoding, because the lead has to survive the
-		 * redirect.
+		 * How the lead reaches the CRM, and how its answer is kept.
 		 *
-		 * Contact Form 7 dispatches `wpcf7mailsent` BEFORE `wpcf7submit`, and
-		 * wpcf7-redirect navigates to /thank-you/ on mailsent. By the time this
-		 * ran the page was already unloading and the fetch - keepalive or not -
-		 * was killed mid-flight. Measured on the live site: sent directly, the
-		 * CRM created a lead every time; of 30 real form submissions it created
-		 * none, and of 10 slower ones only 7.
+		 * History: Contact Form 7 dispatches `wpcf7mailsent` BEFORE `wpcf7submit`,
+		 * and the redirect to /thank-you/ fired 50 ms later, so a fetch was killed
+		 * mid-flight (of 30 real submissions the CRM created none). sendBeacon was
+		 * the fix - the browser completes it after the page is gone - but nobody
+		 * can read a beacon's answer, so the site never knew what the CRM said.
 		 *
-		 * sendBeacon exists for exactly this: the browser takes ownership of the
-		 * request and completes it after the page is gone.
+		 * Now (7 Oct 2026): a readable fetch, and the redirect waits for it.
+		 * HFCM snippet 7 ("CF7 - lock submit, redirect to Thank You") waits on
+		 * window.ygLeadPending, for at most 2.5 s; the CRM answers in ~0.13 s.
+		 * The answer - status and body - is posted to the site's own
+		 * /wp-json/yg/v1/lead-api-result (mu-plugin 57) with sendBeacon, which
+		 * does survive the page leaving. If the fetch itself fails (network, or
+		 * the CRM's CORS changes), the lead is handed to sendBeacon exactly as
+		 * before, and that is recorded too.
 		 *
-		 * It cannot carry an application/json content type - that is not
-		 * CORS-safelisted, so it would need a preflight, which sendBeacon cannot
-		 * perform, and the request is dropped in silence. URLSearchParams sends
-		 * application/x-www-form-urlencoded, which is safelisted. The CRM parses
-		 * it and returns a crm_lead_id - verified against the live endpoint
-		 * before this was written.
+		 * Form encoding throughout: application/x-www-form-urlencoded is
+		 * CORS-safelisted, so neither path needs a preflight. The CRM sends
+		 * Access-Control-Allow-Origin for this site, which is what lets the
+		 * fetch read the answer (checked 7 Oct 2026).
 		 */
+		var RESULT_URL = <?php echo wp_json_encode( esc_url_raw( rest_url( 'yg/v1/lead-api-result' ) ) ); ?>;
+
+		function report( payload, info ) {
+			try {
+				var data = JSON.stringify( {
+					email:     payload.email || '',
+					phone:     payload.phone || '',
+					page:      window.location.href || '',
+					transport: info.transport,
+					status:    info.status,
+					response:  info.response,
+					ms:        info.ms
+				} );
+				if ( navigator.sendBeacon ) {
+					navigator.sendBeacon( RESULT_URL, new Blob( [ data ], { type: 'text/plain;charset=UTF-8' } ) );
+				}
+			} catch ( err ) {}
+		}
+
+		function beacon( params ) {
+			try {
+				return navigator.sendBeacon ? navigator.sendBeacon( API_URL, params ) : false;
+			} catch ( err ) {
+				return false;
+			}
+		}
+
 		function post( payload ) {
 			payload = withFullPhone( payload );
 
@@ -449,27 +478,63 @@ function yg_lead_api_browser_script() {
 				}
 			}
 
-			var queued = false;
-			try {
-				if ( navigator.sendBeacon ) {
-					queued = navigator.sendBeacon( API_URL, params );
-				}
-			} catch ( err ) {}
+			var started = Date.now();
 
-			if ( queued ) {
-				return;
+			if ( window.fetch && window.Promise ) {
+				var settled = false;
+				var release;
+				window.ygLeadPending = new Promise( function ( resolve ) { release = resolve; } );
+
+				var finish = function ( info ) {
+					if ( settled ) {
+						return;
+					}
+					settled = true;
+					info.ms = Date.now() - started;
+					report( payload, info );
+					release();
+				};
+
+				/* The redirect stops waiting at 2.5 s; record that no answer came. */
+				setTimeout( function () {
+					finish( { transport: 'timeout', status: '', response: 'No answer from the CRM within 2.3 s; the page moved on.' } );
+				}, 2300 );
+
+				try {
+					fetch( API_URL, {
+						method:    'POST',
+						headers:   { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+						body:      params.toString(),
+						keepalive: true
+					} ).then( function ( r ) {
+						return r.text().then( function ( text ) {
+							finish( { transport: 'fetch', status: r.status, response: String( text ).slice( 0, 4000 ) } );
+						} );
+					} ).catch( function ( err ) {
+						/* The lead may not have arrived: send it the old way. */
+						var queued = beacon( params );
+						finish( {
+							transport: queued ? 'fetch-failed-beacon' : 'fetch-failed',
+							status:    '',
+							response:  String( ( err && err.message ) || err )
+						} );
+					} );
+					return;
+				} catch ( err ) {
+					settled = true;
+					release();
+					/* fetch threw synchronously: fall through to sendBeacon. */
+				}
 			}
 
-			/* No sendBeacon, or it refused the payload: the same encoding over
-			   fetch, so this path needs no preflight either. */
-			try {
-				fetch( API_URL, {
-					method:    'POST',
-					headers:   { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-					body:      params.toString(),
-					keepalive: true
-				} ).catch( function () {} );
-			} catch ( err ) {}
+			/* No fetch: sendBeacon as before. Its answer cannot be read. */
+			var queued = beacon( params );
+			report( payload, {
+				transport: queued ? 'beacon' : 'not-sent',
+				status:    '',
+				response:  queued ? 'Sent with sendBeacon; the CRM answer cannot be read.' : 'sendBeacon refused the payload.',
+				ms:        Date.now() - started
+			} );
 		}
 	})();
 	</script>
@@ -715,6 +780,10 @@ function yg_lead_api_send( array $payload ) {
 
 	$code = (int) wp_remote_retrieve_response_code( $response );
 	$body = wp_remote_retrieve_body( $response );
+
+	if ( function_exists( 'yg_lead_api_record' ) ) {
+		yg_lead_api_record( array( 'channel' => 'crm', 'transport' => 'server', 'http_status' => $code, 'response' => $body, 'email' => $payload['email'] ?? '', 'phone' => $payload['phone'] ?? '', 'page_url' => $payload['tracking_url'] ?? '' ) );
+	}
 
 	if ( $code < 200 || $code > 299 ) {
 		yg_lead_api_log( sprintf( 'HTTP %d: %s', $code, $body ), $payload );

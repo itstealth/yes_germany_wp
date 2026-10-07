@@ -255,11 +255,29 @@ function yg_lms_push( $contact_form, &$abort = null, $submission = null ) {
 
 		if ( is_wp_error( $response ) ) {
 			yg_lms_log( 'transport error: ' . $response->get_error_message(), $payload );
+			if ( function_exists( 'yg_lead_api_record' ) ) {
+				yg_lead_api_record( array( 'channel' => 'lms', 'transport' => 'server', 'response' => 'transport error: ' . $response->get_error_message(), 'email' => isset( $posted['email'] ) ? $posted['email'] : '', 'phone' => isset( $posted['phone'] ) ? $posted['phone'] : '', 'page_url' => $referer ) );
+			}
 			return;
 		}
 
 		$code = (int) wp_remote_retrieve_response_code( $response );
 		$body = wp_remote_retrieve_body( $response );
+
+		/* Every answer is kept next to the lead (mu-plugin 57), not only failures. */
+		if ( function_exists( 'yg_lead_api_record' ) ) {
+			yg_lead_api_record(
+				array(
+					'channel'     => 'lms',
+					'transport'   => 'server',
+					'http_status' => $code,
+					'response'    => $body,
+					'email'       => isset( $posted['email'] ) ? $posted['email'] : '',
+					'phone'       => isset( $posted['phone'] ) ? $posted['phone'] : '',
+					'page_url'    => $referer,
+				)
+			);
+		}
 
 		if ( $code < 200 || $code > 299 ) {
 			yg_lms_log( sprintf( 'HTTP %d: %s', $code, $body ), $payload );

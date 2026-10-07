@@ -6,7 +6,7 @@
  *              LMS API key in the page source. Those forms now post to
  *              /wp-json/yg/v1/lms-lead; this adds the key from wp-config.php and
  *              forwards the lead unchanged, so the key never reaches the browser.
- * Version:     1.0.0
+ * Version:     1.0.1
  * Author:      YES Germany
  */
 
@@ -42,7 +42,8 @@ const YG_LMS_RELAY_ROUTE     = '/lms-lead';
  * whether the lead is accepted.
  */
 function yg_lms_relay_origins() {
-	$origins = array( 'https://dubai.yesgermany.com' );
+	// dubai answers on both hostnames without redirecting, so both are listed.
+	$origins = array( 'https://dubai.yesgermany.com', 'https://www.dubai.yesgermany.com' );
 
 	$home = wp_parse_url( home_url() );
 	if ( ! empty( $home['host'] ) ) {
@@ -209,6 +210,31 @@ function yg_lms_relay_handle( WP_REST_Request $request ) {
 	$status  = (int) wp_remote_retrieve_response_code( $response );
 	$raw     = wp_remote_retrieve_body( $response );
 	$decoded = json_decode( $raw, true );
+
+	/* Every answer is kept (mu-plugin 57). These leads are not in yg_leads, so
+	   the row carries the contact details the form sent. */
+	if ( function_exists( 'yg_lead_api_record' ) ) {
+		$contact = array( 'email' => '', 'phone' => '' );
+		foreach ( $payload['field_data'] as $f ) {
+			if ( '' === $contact['email'] && false !== stripos( $f['code'], 'mail' ) ) {
+				$contact['email'] = $f['value'];
+			}
+			if ( '' === $contact['phone'] && preg_match( '/phone|mobile|contact/i', $f['code'] ) ) {
+				$contact['phone'] = $f['value'];
+			}
+		}
+		yg_lead_api_record(
+			array(
+				'channel'     => 'lms',
+				'transport'   => 'relay',
+				'http_status' => $status,
+				'response'    => $raw,
+				'email'       => $contact['email'],
+				'phone'       => $contact['phone'],
+				'page_url'    => isset( $_SERVER['HTTP_REFERER'] ) ? esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) : '',
+			)
+		);
+	}
 
 	if ( ! is_array( $decoded ) ) {
 		yg_lms_relay_log( sprintf( 'HTTP %d, not JSON: %s', $status, substr( $raw, 0, 500 ) ), $payload );
