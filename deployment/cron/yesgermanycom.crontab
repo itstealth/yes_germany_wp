@@ -1,0 +1,3 @@
+MAILTO=""
+# YES Germany: every hour, check recent www leads in the LMS and push the missing ones (mu-plugin 59 v2). Log: ~/yg-cron/lms-backfill.log
+17 * * * * cd /home/yesgermanycom/public_html && /usr/local/bin/php /home/yesgermanycom/bin/wp yg-lms-backfill --skip-themes >> /home/yesgermanycom/yg-cron/lms-backfill.log 2>&1
