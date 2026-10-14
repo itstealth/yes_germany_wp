@@ -1,0 +1,4 @@
+MAILTO=""
+# YES Germany: every 6 hours (server clock is IST: 00:17, 06:17, 12:17, 18:17), check recent www leads in the LMS;
+# missing ones go to saveDetails (client's MongoDB) first, the LMS lead-widget only if the sync drops them (mu-plugin 59 v3). Log: ~/yg-cron/lms-backfill.log
+17 0,6,12,18 * * * cd /home/yesgermanycom/public_html && /usr/local/bin/php /home/yesgermanycom/bin/wp yg-lms-backfill --skip-themes >> /home/yesgermanycom/yg-cron/lms-backfill.log 2>&1

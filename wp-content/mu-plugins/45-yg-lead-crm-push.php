@@ -5,7 +5,7 @@
  *              validated form submission. Replaces the site-wide JavaScript
  *              submit listener that posted every form, including half-filled
  *              ones, and unhooks it if it is still present in the theme.
- * Version:     1.0.0
+ * Version:     2.1.1
  * Author:      Stealth Digital
  *
  * Why this is a must-use plugin and not theme code
@@ -40,6 +40,36 @@
  * Either way the trigger is the same: one completed, validated submission. The
  * browser transport listens for CF7's `wpcf7submit` event, NOT for the DOM
  * "submit" event the old code used - that is the whole difference.
+ *
+ * 2.0.0 - server transport made complete (2026-10-13, after outbound 8443 opened)
+ * ------------------------------------------------------------------------------
+ * - Browser-only values (document.referrer, sessionStorage yg_referral_url and
+ *   yg_session_active, page title, full page URL) are copied into hidden
+ *   fields on every CF7 form just before it is submitted, so the server sends
+ *   exactly what the old client script sent - including yg_session_active,
+ *   which 1.x never sent.
+ * - mh.yesgermany.com submissions are never sent from here: mh is email only
+ *   (mu-plugins 53 / 58).
+ * - Every server answer is stored in the Lead API log, failures included
+ *   (1.x wrote failures only to a text file).
+ * - yg_lead_api_send() returns the result, so the hourly job (mu-plugin 59)
+ *   can resend a stored lead through the same code.
+ * Turning it on: define( 'YG_LEAD_API_TRANSPORT', 'server' ); in wp-config.php.
+ *
+ * 2.1.0 - utm_* follow the page URL (2026-10-13)
+ * ----------------------------------------------
+ * Cache Enabler only checked the START of the query string, so every URL that
+ * began with utm_ or gclid was served from - and saved into - the plain page
+ * cache, hidden utm_* values included. Visitors got the previous visitor's
+ * UTMs (or none). Fixed at the source (Cache Enabler "excluded query strings"
+ * = /.+/ on live), and here: when the submitting page's URL carries UTMs,
+ * those are what the CRM gets.
+ *
+ * 2.1.1 - Elementor phone fields are found by their placeholder (2026-10-13)
+ * ------------------------------------------------------------------------
+ * The live Elementor forms have no label on the phone field, only the
+ * placeholder "Phone Number". The browser script read placeholders; the
+ * server path did not, so the lead went to saveDetails without a phone.
  *
  * Elementor Pro forms
  * -------------------
@@ -173,6 +203,101 @@ function yg_lead_api_transport() {
  * ---------------------------------------------------------------------------
  */
 add_action( 'wp_footer', 'yg_lead_api_browser_script', 999 );
+add_action( 'wp_footer', 'yg_lead_attribution_script', 998 );
+
+/**
+ * Browser-only attribution, carried into the form.
+ *
+ * The old client script read these in the browser when it posted. A server
+ * POST cannot see them, so they ride in hidden fields of the submission:
+ *
+ *   yg_referrer        document.referrer  (where the visitor came from)
+ *   yg_referral_url    sessionStorage / localStorage yg_referral_url (first landing URL)
+ *   yg_session_active  sessionStorage yg_session_active (pages visited)
+ *   yg_page_title      document.title
+ *   yg_tracking_url    location.href (with its query string)
+ *
+ * They are refreshed in the capture phase of `submit`, which runs before
+ * Contact Form 7 reads the form, and once on load for forms that are submitted
+ * some other way. Printed on every page whatever the transport: on the browser
+ * transport they are simply stored with the lead.
+ */
+function yg_lead_attribution_script() {
+	if ( is_admin() ) {
+		return;
+	}
+	?>
+	<script id="yg-lead-attribution">
+	(function () {
+		function store( key ) {
+			try {
+				var v = window.sessionStorage.getItem( key );
+				if ( v ) { return v; }
+			} catch ( e ) {}
+			try {
+				return window.localStorage.getItem( key ) || '';
+			} catch ( e ) {}
+			return '';
+		}
+		function session( key ) {
+			try { return window.sessionStorage.getItem( key ) || ''; } catch ( e ) { return ''; }
+		}
+		function fill( form ) {
+			if ( ! form || ! form.querySelector ) { return; }
+			var values = {
+				yg_referrer:       document.referrer || '',
+				yg_referral_url:   store( 'yg_referral_url' ),
+				yg_session_active: session( 'yg_session_active' ),
+				yg_page_title:     document.title || '',
+				yg_tracking_url:   window.location.href || ''
+			};
+			for ( var name in values ) {
+				var input = form.querySelector( 'input[type="hidden"][name="' + name + '"]' );
+				if ( ! input ) {
+					input = document.createElement( 'input' );
+					input.type = 'hidden';
+					input.name = name;
+					form.appendChild( input );
+				}
+				input.value = values[ name ];
+			}
+		}
+		function fillAll() {
+			var forms = document.querySelectorAll( 'form.wpcf7-form, form.elementor-form' );
+			for ( var i = 0; i < forms.length; i++ ) { fill( forms[ i ] ); }
+		}
+		document.addEventListener( 'submit', function ( e ) {
+			var f = e.target;
+			if ( f && f.matches && f.matches( 'form.wpcf7-form, form.elementor-form' ) ) { fill( f ); }
+		}, true );
+		if ( document.readyState === 'loading' ) {
+			document.addEventListener( 'DOMContentLoaded', fillAll );
+		} else {
+			fillAll();
+		}
+		document.addEventListener( 'elementor/popup/show', fillAll );
+	})();
+	</script>
+	<?php
+}
+
+/**
+ * Split the browser-only values out of posted data.
+ *
+ * @param array $posted Posted fields (modified: the internal yg_* helpers are removed).
+ * @return array Values present in the submission, keyed by hidden-field name.
+ */
+function yg_lead_browser_values( array &$posted ) {
+	$out = array();
+	foreach ( array( 'yg_referrer', 'yg_referral_url', 'yg_session_active', 'yg_page_title', 'yg_tracking_url' ) as $key ) {
+		if ( array_key_exists( $key, $posted ) ) {
+			$value       = $posted[ $key ];
+			$out[ $key ] = is_array( $value ) ? implode( ', ', array_filter( $value, 'is_scalar' ) ) : (string) $value;
+		}
+	}
+	unset( $posted['yg_referrer'], $posted['yg_page_title'], $posted['yg_tracking_url'], $posted['yg_referral_url'], $posted['yg_session_active'] );
+	return $out;
+}
 
 /**
  * Print the browser-side push.
@@ -418,26 +543,55 @@ function yg_lead_api_browser_script() {
 		}
 
 		/**
-		 * sendBeacon with form encoding, because the lead has to survive the
-		 * redirect.
+		 * How the lead reaches the CRM, and how its answer is kept.
 		 *
-		 * Contact Form 7 dispatches `wpcf7mailsent` BEFORE `wpcf7submit`, and
-		 * wpcf7-redirect navigates to /thank-you/ on mailsent. By the time this
-		 * ran the page was already unloading and the fetch - keepalive or not -
-		 * was killed mid-flight. Measured on the live site: sent directly, the
-		 * CRM created a lead every time; of 30 real form submissions it created
-		 * none, and of 10 slower ones only 7.
+		 * History: Contact Form 7 dispatches `wpcf7mailsent` BEFORE `wpcf7submit`,
+		 * and the redirect to /thank-you/ fired 50 ms later, so a fetch was killed
+		 * mid-flight (of 30 real submissions the CRM created none). sendBeacon was
+		 * the fix - the browser completes it after the page is gone - but nobody
+		 * can read a beacon's answer, so the site never knew what the CRM said.
 		 *
-		 * sendBeacon exists for exactly this: the browser takes ownership of the
-		 * request and completes it after the page is gone.
+		 * Now (7 Oct 2026): a readable fetch, and the redirect waits for it.
+		 * HFCM snippet 7 ("CF7 - lock submit, redirect to Thank You") waits on
+		 * window.ygLeadPending, for at most 2.5 s; the CRM answers in ~0.13 s.
+		 * The answer - status and body - is posted to the site's own
+		 * /wp-json/yg/v1/lead-api-result (mu-plugin 57) with sendBeacon, which
+		 * does survive the page leaving. If the fetch itself fails (network, or
+		 * the CRM's CORS changes), the lead is handed to sendBeacon exactly as
+		 * before, and that is recorded too.
 		 *
-		 * It cannot carry an application/json content type - that is not
-		 * CORS-safelisted, so it would need a preflight, which sendBeacon cannot
-		 * perform, and the request is dropped in silence. URLSearchParams sends
-		 * application/x-www-form-urlencoded, which is safelisted. The CRM parses
-		 * it and returns a crm_lead_id - verified against the live endpoint
-		 * before this was written.
+		 * Form encoding throughout: application/x-www-form-urlencoded is
+		 * CORS-safelisted, so neither path needs a preflight. The CRM sends
+		 * Access-Control-Allow-Origin for this site, which is what lets the
+		 * fetch read the answer (checked 7 Oct 2026).
 		 */
+		var RESULT_URL = <?php echo wp_json_encode( esc_url_raw( rest_url( 'yg/v1/lead-api-result' ) ) ); ?>;
+
+		function report( payload, info ) {
+			try {
+				var data = JSON.stringify( {
+					email:     payload.email || '',
+					phone:     payload.phone || '',
+					page:      window.location.href || '',
+					transport: info.transport,
+					status:    info.status,
+					response:  info.response,
+					ms:        info.ms
+				} );
+				if ( navigator.sendBeacon ) {
+					navigator.sendBeacon( RESULT_URL, new Blob( [ data ], { type: 'text/plain;charset=UTF-8' } ) );
+				}
+			} catch ( err ) {}
+		}
+
+		function beacon( params ) {
+			try {
+				return navigator.sendBeacon ? navigator.sendBeacon( API_URL, params ) : false;
+			} catch ( err ) {
+				return false;
+			}
+		}
+
 		function post( payload ) {
 			payload = withFullPhone( payload );
 
@@ -449,27 +603,63 @@ function yg_lead_api_browser_script() {
 				}
 			}
 
-			var queued = false;
-			try {
-				if ( navigator.sendBeacon ) {
-					queued = navigator.sendBeacon( API_URL, params );
-				}
-			} catch ( err ) {}
+			var started = Date.now();
 
-			if ( queued ) {
-				return;
+			if ( window.fetch && window.Promise ) {
+				var settled = false;
+				var release;
+				window.ygLeadPending = new Promise( function ( resolve ) { release = resolve; } );
+
+				var finish = function ( info ) {
+					if ( settled ) {
+						return;
+					}
+					settled = true;
+					info.ms = Date.now() - started;
+					report( payload, info );
+					release();
+				};
+
+				/* The redirect stops waiting at 2.5 s; record that no answer came. */
+				setTimeout( function () {
+					finish( { transport: 'timeout', status: '', response: 'No answer from the CRM within 2.3 s; the page moved on.' } );
+				}, 2300 );
+
+				try {
+					fetch( API_URL, {
+						method:    'POST',
+						headers:   { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+						body:      params.toString(),
+						keepalive: true
+					} ).then( function ( r ) {
+						return r.text().then( function ( text ) {
+							finish( { transport: 'fetch', status: r.status, response: String( text ).slice( 0, 4000 ) } );
+						} );
+					} ).catch( function ( err ) {
+						/* The lead may not have arrived: send it the old way. */
+						var queued = beacon( params );
+						finish( {
+							transport: queued ? 'fetch-failed-beacon' : 'fetch-failed',
+							status:    '',
+							response:  String( ( err && err.message ) || err )
+						} );
+					} );
+					return;
+				} catch ( err ) {
+					settled = true;
+					release();
+					/* fetch threw synchronously: fall through to sendBeacon. */
+				}
 			}
 
-			/* No sendBeacon, or it refused the payload: the same encoding over
-			   fetch, so this path needs no preflight either. */
-			try {
-				fetch( API_URL, {
-					method:    'POST',
-					headers:   { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-					body:      params.toString(),
-					keepalive: true
-				} ).catch( function () {} );
-			} catch ( err ) {}
+			/* No fetch: sendBeacon as before. Its answer cannot be read. */
+			var queued = beacon( params );
+			report( payload, {
+				transport: queued ? 'beacon' : 'not-sent',
+				status:    '',
+				response:  queued ? 'Sent with sendBeacon; the CRM answer cannot be read.' : 'sendBeacon refused the payload.',
+				ms:        Date.now() - started
+			} );
 		}
 	})();
 	</script>
@@ -528,6 +718,11 @@ function yg_lead_api_push( $contact_form, &$abort = null, $submission = null ) {
 			return;
 		}
 
+		/* mh.yesgermany.com leads are email only (mu-plugins 53 / 58) - never sent from here. */
+		if ( function_exists( 'yg_mh_mail_is_mh_submission' ) && yg_mh_mail_is_mh_submission() ) {
+			return;
+		}
+
 		/* One POST per submission, however many times CF7 runs its hooks. */
 		$unit_tag = isset( $_POST['_wpcf7_unit_tag'] ) ? sanitize_text_field( wp_unslash( $_POST['_wpcf7_unit_tag'] ) ) : (string) $form_id; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- CF7 has already validated this submission.
 		if ( isset( $sent[ $unit_tag ] ) ) {
@@ -572,8 +767,11 @@ function yg_lead_api_payload( $submission, $form_id, $form_title ) {
 	 */
 	$skip = '/^_wpcf7|^_wpnonce|(^|[_-])(pass|passwd|password|pwd|token|nonce|captcha|cvv|iban|card|cardnumber)([_-]|$)/i';
 
+	$posted  = (array) $submission->get_posted_data();
+	$browser = yg_lead_browser_values( $posted );
+
 	$payload = array();
-	foreach ( (array) $submission->get_posted_data() as $key => $value ) {
+	foreach ( $posted as $key => $value ) {
 		if ( preg_match( $skip, $key ) ) {
 			continue;
 		}
@@ -590,9 +788,10 @@ function yg_lead_api_payload( $submission, $form_id, $form_title ) {
 
 	$payload['form_id']      = $form_id;
 	$payload['form_title']   = $form_title;
-	$payload['tracking_url'] = $page_url;
-	$payload['page_title']   = yg_lead_api_page_title( $page_url );
-	$payload['referrer']     = isset( $_SERVER['HTTP_REFERER'] ) ? esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) : '';
+	$payload['tracking_url'] = ! empty( $browser['yg_tracking_url'] ) ? $browser['yg_tracking_url'] : $page_url;
+	$payload['page_title']   = ! empty( $browser['yg_page_title'] ) ? $browser['yg_page_title'] : yg_lead_api_page_title( $page_url );
+	/* The visitor's own document.referrer, as the old script sent it (may be empty). */
+	$payload['referrer']     = array_key_exists( 'yg_referrer', $browser ) ? $browser['yg_referrer'] : ( isset( $_SERVER['HTTP_REFERER'] ) ? esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) : '' );
 	$payload['user_agent']   = (string) $submission->get_meta( 'user_agent' );
 	$payload['remote_ip']    = (string) $submission->get_meta( 'remote_ip' );
 	$payload['timestamp']    = gmdate( 'c' );
@@ -604,10 +803,43 @@ function yg_lead_api_payload( $submission, $form_id, $form_title ) {
 	 * between pages, and sessionStorage did not survive a new tab.
 	 */
 	$attr                          = yg_lead_api_attribution();
-	$payload['yg_referral_url']    = $attr['referrer'];
+	$payload['yg_referral_url']    = ! empty( $browser['yg_referral_url'] ) ? $browser['yg_referral_url'] : $attr['referrer'];
+	$payload['yg_session_active']  = isset( $browser['yg_session_active'] ) ? $browser['yg_session_active'] : '';
 	$payload['yg_landing_page']    = $attr['landing_page'];
 
-	return $payload;
+	return yg_lead_api_utm_from_url( $payload, $payload['tracking_url'] );
+}
+
+/**
+ * Make utm_* match the page the visitor submitted on.
+ *
+ * The form's hidden utm_* fields are filled from the URL when the page is
+ * rendered (CF7 `default:get`). A page cache that leaves utm_* out of its
+ * cache key serves one visitor's values to the next: from 24 Sep to 13 Oct
+ * 2026 ChatGPT-ad visitors on /german-education-consultant/ were sent as
+ * Google-Ads and back. When the submitting page's URL carries UTMs, those
+ * win; when it has none, the form's values are kept.
+ *
+ * @param array  $payload  Lead payload.
+ * @param string $page_url URL the form was submitted from, with its query string.
+ * @return array
+ */
+function yg_lead_api_utm_from_url( array $payload, $page_url ) {
+	$query = (string) wp_parse_url( (string) $page_url, PHP_URL_QUERY );
+	if ( '' === $query ) {
+		return $payload;
+	}
+	parse_str( $query, $params );
+
+	$keys = array( 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content' );
+	$url  = array();
+	foreach ( $keys as $key ) {
+		$url[ $key ] = isset( $params[ $key ] ) && is_scalar( $params[ $key ] ) ? sanitize_text_field( (string) $params[ $key ] ) : '';
+	}
+	if ( '' === implode( '', $url ) ) {
+		return $payload;
+	}
+	return array_merge( $payload, $url );
 }
 
 /**
@@ -687,14 +919,18 @@ function yg_lead_api_log( $reason, array $payload ) {
  *
  * @param array $payload Payload.
  */
-function yg_lead_api_send( array $payload ) {
-	$payload = yg_lead_api_full_phone( $payload );
+function yg_lead_api_send( array $payload, array $context = array() ) {
+	$payload   = yg_lead_api_full_phone( $payload );
+	$transport = isset( $context['transport'] ) ? (string) $context['transport'] : 'server';
+	$result    = array( 'ok' => false, 'code' => 0, 'body' => '', 'crm_lead_id' => '' );
 
 	if ( ! yg_lead_api_enabled() ) {
 		yg_lead_api_log( 'dry-run (not sent)', $payload );
-		return;
+		$result['body'] = 'dry-run (not sent)';
+		return $result;
 	}
 
+	$started  = microtime( true );
 	$response = wp_remote_post(
 		yg_lead_api_url(),
 		array(
@@ -707,18 +943,41 @@ function yg_lead_api_send( array $payload ) {
 			'body'        => wp_json_encode( $payload ),
 		)
 	);
+	$ms = (int) round( ( microtime( true ) - $started ) * 1000 );
 
-	if ( is_wp_error( $response ) ) {
-		yg_lead_api_log( 'transport error: ' . $response->get_error_message(), $payload );
-		return;
+	$record = array(
+		'channel'     => 'crm',
+		'transport'   => $transport,
+		'email'       => isset( $payload['email'] ) ? $payload['email'] : '',
+		'phone'       => isset( $payload['phone'] ) ? $payload['phone'] : '',
+		'page_url'    => isset( $payload['tracking_url'] ) ? $payload['tracking_url'] : '',
+		'duration_ms' => $ms,
+	);
+	if ( ! empty( $context['lead_id'] ) ) {
+		$record['lead_id'] = (int) $context['lead_id'];
 	}
 
-	$code = (int) wp_remote_retrieve_response_code( $response );
-	$body = wp_remote_retrieve_body( $response );
+	if ( is_wp_error( $response ) ) {
+		$result['body'] = 'transport error: ' . $response->get_error_message();
+		yg_lead_api_log( $result['body'], $payload );
+		if ( function_exists( 'yg_lead_api_record' ) ) {
+			yg_lead_api_record( $record + array( 'http_status' => null, 'response' => $result['body'] ) );
+		}
+		return $result;
+	}
+
+	$code             = (int) wp_remote_retrieve_response_code( $response );
+	$body             = (string) wp_remote_retrieve_body( $response );
+	$result['code']   = $code;
+	$result['body']   = $body;
+
+	if ( function_exists( 'yg_lead_api_record' ) ) {
+		yg_lead_api_record( $record + array( 'http_status' => $code, 'response' => $body ) );
+	}
 
 	if ( $code < 200 || $code > 299 ) {
 		yg_lead_api_log( sprintf( 'HTTP %d: %s', $code, $body ), $payload );
-		return;
+		return $result;
 	}
 
 	/*
@@ -734,16 +993,21 @@ function yg_lead_api_send( array $payload ) {
 	 * payload that actually had a phone. A form that collects name and email
 	 * only, such as an e-book download, is working correctly with no id back.
 	 */
-	$decoded = json_decode( $body, true );
+	$decoded   = json_decode( $body, true );
 	$had_phone = ! empty( $payload['phone'] );
 
 	if ( ! is_array( $decoded ) || empty( $decoded['success'] ) ) {
 		yg_lead_api_log( 'rejected: ' . $body, $payload );
-		return;
+		return $result;
 	}
-	if ( $had_phone && empty( $decoded['crm_lead_id'] ) ) {
+	$result['crm_lead_id'] = isset( $decoded['crm_lead_id'] ) ? (string) $decoded['crm_lead_id'] : '';
+	if ( $had_phone && '' === $result['crm_lead_id'] ) {
 		yg_lead_api_log( 'phone sent but no crm_lead_id returned: ' . $body, $payload );
+		return $result;
 	}
+
+	$result['ok'] = true;
+	return $result;
 }
 
 /*
@@ -775,6 +1039,20 @@ function yg_lead_elementor_record( $record, $handler = null ) {
 			return;
 		}
 
+		/*
+		 * Placeholders, by field id. The live forms label their phone field
+		 * only with the placeholder "Phone Number" (type text or number, no
+		 * label), which the record's fields do not carry - without this the
+		 * lead reached saveDetails with no phone and never got a crm_lead_id.
+		 */
+		$placeholders = array();
+		$settings_all = method_exists( $record, 'get_form_settings' ) ? $record->get_form_settings( 'form_fields' ) : array();
+		foreach ( (array) $settings_all as $setting ) {
+			if ( is_array( $setting ) && ! empty( $setting['custom_id'] ) ) {
+				$placeholders[ (string) $setting['custom_id'] ] = isset( $setting['placeholder'] ) ? (string) $setting['placeholder'] : '';
+			}
+		}
+
 		$posted = array();
 		foreach ( $fields as $id => $field ) {
 			$value = isset( $field['value'] ) ? $field['value'] : '';
@@ -786,19 +1064,20 @@ function yg_lead_elementor_record( $record, $handler = null ) {
 			/*
 			 * Elementor names most fields field_<hash>, which tells the leads
 			 * table nothing. Copy the value to the name the table reads, using
-			 * the field's own type and label to decide which it is. The
-			 * original key is kept, so nothing is lost.
+			 * the field's own type, label and placeholder to decide which it
+			 * is. The original key is kept, so nothing is lost.
 			 */
 			$type  = isset( $field['type'] ) ? (string) $field['type'] : '';
 			$title = isset( $field['title'] ) ? (string) $field['title'] : '';
+			$hint  = $title . ' ' . $id . ' ' . ( isset( $placeholders[ (string) $id ] ) ? $placeholders[ (string) $id ] : '' );
 
 			if ( ( 'email' === $type || 'email' === $id ) && empty( $posted['email'] ) ) {
 				$posted['email'] = $posted[ (string) $id ];
 			}
-			if ( ( 'tel' === $type || preg_match( '/phone|mobile|contact number/i', $title . ' ' . $id ) ) && empty( $posted['phone'] ) ) {
+			if ( ( 'tel' === $type || preg_match( '/phone|mobile|contact number/i', $hint ) ) && empty( $posted['phone'] ) ) {
 				$posted['phone'] = $posted[ (string) $id ];
 			}
-			if ( ( 'name' === $id || preg_match( '/full name|your name/i', $title ) ) && empty( $posted['full_name'] ) ) {
+			if ( ( 'name' === $id || preg_match( '/full name|your name/i', $hint ) ) && empty( $posted['full_name'] ) ) {
 				$posted['full_name'] = $posted[ (string) $id ];
 			}
 		}
@@ -835,17 +1114,25 @@ function yg_lead_elementor_record( $record, $handler = null ) {
 
 		$payload = $posted;
 		$attr    = yg_lead_api_attribution();
+		$raw     = array();
+		foreach ( array( 'yg_referrer', 'yg_referral_url', 'yg_session_active', 'yg_page_title', 'yg_tracking_url' ) as $key ) {
+			if ( isset( $_POST[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Elementor has validated the submission.
+				$raw[ $key ] = sanitize_textarea_field( wp_unslash( (string) $_POST[ $key ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			}
+		}
+		$browser = yg_lead_browser_values( $raw );
 
 		$payload['form_source']     = 'elementor';
 		$payload['form_title']      = 'Elementor: ' . ( $settings ? $settings : 'form' );
-		$payload['tracking_url']    = $page_url;
-		$payload['page_title']      = yg_lead_api_page_title( $page_url );
-		$payload['referrer']        = $page_url;
-		$payload['user_agent']      = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : '';
-		$payload['timestamp']       = gmdate( 'c' );
-		$payload['yg_referral_url'] = $attr['referrer'];
+		$payload['tracking_url']      = ! empty( $browser['yg_tracking_url'] ) ? $browser['yg_tracking_url'] : $page_url;
+		$payload['page_title']        = ! empty( $browser['yg_page_title'] ) ? $browser['yg_page_title'] : yg_lead_api_page_title( $page_url );
+		$payload['referrer']          = array_key_exists( 'yg_referrer', $browser ) ? $browser['yg_referrer'] : $page_url;
+		$payload['user_agent']        = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : '';
+		$payload['timestamp']         = gmdate( 'c' );
+		$payload['yg_referral_url']   = ! empty( $browser['yg_referral_url'] ) ? $browser['yg_referral_url'] : $attr['referrer'];
+		$payload['yg_session_active'] = isset( $browser['yg_session_active'] ) ? $browser['yg_session_active'] : '';
 
-		yg_lead_api_send( $payload );
+		yg_lead_api_send( yg_lead_api_utm_from_url( $payload, $payload['tracking_url'] ) );
 	} catch ( \Throwable $e ) {
 		yg_lead_api_log( 'elementor: ' . $e->getMessage(), array() );
 	}
