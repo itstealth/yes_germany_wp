@@ -7,7 +7,7 @@
  *              that names the campaign. Meta (Facebook / Instagram) leads from mh are not
  *              emailed at all. Nothing else changes: the lead-capture row, the CRM push and
  *              the LMS push all run exactly as before for every lead.
- * Version:     1.3.0
+ * Version:     1.4.1
  * Author:      YES Germany
  */
 
@@ -132,7 +132,8 @@ add_filter(
 			$components['recipient'] = implode( ', ', $recipients );
 		}
 		$components['subject']   = yg_mh_mail_subject();
-		$components['body']      = yg_mh_mail_add_ad_details( (string) $components['body'] );
+		$built                   = yg_mh_mail_build_body();
+		$components['body']      = '' !== $built ? $built : (string) $components['body'];
 		return $components;
 	},
 	20,
@@ -140,47 +141,54 @@ add_filter(
 );
 
 /**
- * Add the ad click details to an mh lead email (1.3.0, 2026-10-14).
+ * Build the mh lead email body (1.4.1, 2026-11-02).
  *
- * Several Maharashtra ads carry no UTM tags, so the email's utm_ lines were
- * empty and nobody could tell which campaign a lead came from. The mh form
- * (yg-mh-enquiry 1.4.0) now sends Google's campaign ID and click ID, Facebook's
- * click ID and the visitor's first landing page; they are listed here. The
- * Google campaign ID can be searched in Google Ads to find the campaign.
+ * Client request 2 Nov 2026: the MH email shows the lead's details and then only
+ * UTM source, medium and campaign - no ad click IDs, page/landing/referrer URLs or
+ * other UTM fields. 1.4.1 also drops the "Lead captured from" URL line.
+ * Replaces the 1.3.0 "Ad click" block.
  *
- * @param string $body Mail body as composed by CF7 (HTML).
- * @return string
+ * @param array|null $posted Posted form data; read from the current submission when null.
+ * @return string HTML body, or '' when there is no submission (CF7's own body is kept).
  */
-function yg_mh_mail_add_ad_details( $body ) {
-	if ( ! class_exists( 'WPCF7_Submission' ) || ! ( $submission = WPCF7_Submission::get_instance() ) ) {
-		return $body;
+function yg_mh_mail_build_body( $posted = null ) {
+	if ( null === $posted ) {
+		if ( ! class_exists( 'WPCF7_Submission' ) || ! ( $submission = WPCF7_Submission::get_instance() ) ) {
+			return '';
+		}
+		$posted = (array) $submission->get_posted_data();
 	}
-	$posted = (array) $submission->get_posted_data();
-	$get    = function ( $key ) use ( $posted ) {
+	$get = function ( $key ) use ( $posted ) {
 		$v = isset( $posted[ $key ] ) ? $posted[ $key ] : '';
-		return trim( (string) ( is_array( $v ) ? reset( $v ) : $v ) );
+		return trim( (string) ( is_array( $v ) ? implode( ', ', $v ) : $v ) );
 	};
-	$rows = array(
-		'Google Ads campaign ID'      => $get( 'yg_gad_campaignid' ),
-		'Google Ads click ID'         => $get( 'yg_gclid' ),
-		'Facebook / Instagram click ID' => $get( 'yg_fbclid' ),
-		'First landing page'          => $get( 'yg_first_landing' ),
-		'Came to the site from'       => $get( 'yg_first_referrer' ),
-		'Enquiry page'                => $get( 'yg_page_url' ),
+
+	$lead = array(
+		'Name'             => $get( 'full_name' ),
+		'Email'            => $get( 'email' ),
+		'Phone'            => trim( $get( 'phone-country-code' ) . ' ' . $get( 'phone' ) ),
+		'Study level'      => $get( 'level_of_education' ),
+		'Preferred intake' => $get( 'preferred_intake_of_pursuing' ),
+		'State'            => $get( 'state' ),
+		'Branch'           => $get( 'nearest_branch' ),
 	);
-	$lines = array();
-	foreach ( $rows as $label => $value ) {
+
+	$source = array(
+		'UTM source'         => $get( 'utm_source' ),
+		'UTM medium'         => $get( 'utm_medium' ),
+		'UTM campaign'       => $get( 'utm_campaign' ),
+	);
+
+	$lines = array( 'New website enquiry:', '' );
+	foreach ( $lead as $label => $value ) {
 		if ( '' !== $value ) {
 			$lines[] = esc_html( $label ) . ': ' . esc_html( $value );
 		}
 	}
-	if ( ! $rows['Google Ads campaign ID'] && ! $rows['Google Ads click ID'] && ! $rows['Facebook / Instagram click ID'] && '' === $get( 'utm_source' ) ) {
-		array_unshift( $lines, 'No campaign or ad click information came with this visitor.' );
+	$lines[] = '';
+	$lines[] = '--- Source ---';
+	foreach ( $source as $label => $value ) {
+		$lines[] = esc_html( $label ) . ': ' . ( '' !== $value ? esc_html( $value ) : 'not set' );
 	}
-	if ( ! $lines ) {
-		return $body;
-	}
-	$block = '<p>--- Ad click ---<br>' . implode( '<br>', $lines ) . '</p>';
-	$pos   = stripos( $body, '</body>' );
-	return false === $pos ? $body . $block : substr( $body, 0, $pos ) . $block . substr( $body, $pos );
+	return '<p>' . implode( '<br>', $lines ) . '</p>';
 }

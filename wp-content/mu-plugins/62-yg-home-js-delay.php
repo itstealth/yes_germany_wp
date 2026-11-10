@@ -26,7 +26,7 @@
  *              YG_JS_DELAY_SCOPE    'home' = homepage only, 'site' = every eligible page.
  *              YG_JS_DELAY_PUBLIC   false = only for requests carrying ?yg_delaytest=1.
  *              To revert, remove this file and clear the page cache.
- * Version:     2.1.1
+ * Version:     2.1.2
  * Author:      YES Germany
  */
 
@@ -251,6 +251,7 @@ add_action(
 			'countrySelect',
 			'yg-submitting',
 			'MANAGED',
+			'yg_partial_', // Partial-lead draft saver (mu 68): must be listening before the visitor types.
 			'sessionStorage',
 			'ht_ctc', // WhatsApp button settings: its script is not delayed, so neither are they.
 		);
