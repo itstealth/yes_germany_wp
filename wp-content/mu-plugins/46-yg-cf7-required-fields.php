@@ -7,7 +7,7 @@
  *              after a server round trip. Mirroring the attribute means an
  *              incomplete form cannot be sent at all - no request to WordPress,
  *              and nothing for the CRM to receive.
- * Version:     1.0.0
+ * Version:     1.1.0
  * Author:      Stealth Digital
  *
  * Elementor Pro needs none of this: it already renders required="required" on
@@ -36,6 +36,10 @@
  * it - and a disabled required field can never be filled, so that state could
  * not submit at all. Re-check this before adding a state, and before adding a
  * form to the list below.
+ *
+ * 1.1.0 (2026-11-05): branch is optional again, at the user's request, except
+ * on mh submissions and on the German-language course pages - see
+ * yg_cf7_branch_required_here(). The placeholder is still never sent as a value.
  *
  * Note `branchIsRequired()` in yg-form-popup-v2 is hardcoded to return false,
  * so that plugin's own branch gating never fires. This replaces it properly.
@@ -87,6 +91,58 @@ function yg_cf7_forced_required() {
 	);
 }
 
+/**
+ * Whether a published page is a German-language course page.
+ *
+ * Matched by slug - german-language-*, german-course-*, german-classes-*,
+ * a1/a2/b1/b2-level-german-language - so new city pages are covered without a
+ * code change. Pages only: blog posts about the language are general reading,
+ * not course pages.
+ *
+ * @param int $post_id Post ID.
+ * @return bool
+ */
+function yg_cf7_is_german_language_page( $post_id ) {
+	$post = $post_id ? get_post( (int) $post_id ) : null;
+	$yes  = $post && 'page' === $post->post_type
+		&& (bool) preg_match( '/german-(language|course|classes|class)|level-german/', $post->post_name );
+	return (bool) apply_filters( 'yg_cf7_is_german_language_page', $yes, (int) $post_id );
+}
+
+/**
+ * Whether the branch field must be filled for this render or submission.
+ *
+ * Since 5 Nov 2026 branch is optional everywhere except:
+ *   - submissions from mh.yesgermany.com (its own form requires it);
+ *   - the German-language course pages, in-page form and popup alike.
+ *
+ * The page is found the same way when the form is drawn and when it is sent,
+ * so the browser and the server never disagree:
+ *   - drawing: the page being viewed;
+ *   - sending: CF7's _wpcf7_container_post, or, for the popup (which posts
+ *     container 0), the page in the Referer.
+ *
+ * @return bool
+ */
+function yg_cf7_branch_required_here() {
+	if ( function_exists( 'yg_mh_mail_is_mh_submission' ) && yg_mh_mail_is_mh_submission() ) {
+		return true;
+	}
+
+	$post_id = 0;
+	if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- read-only routing hint; CF7 verifies the submission.
+		$post_id = isset( $_POST['_wpcf7_container_post'] ) ? absint( $_POST['_wpcf7_container_post'] ) : 0;
+		if ( ! $post_id && ! empty( $_SERVER['HTTP_REFERER'] ) ) {
+			$post_id = url_to_postid( esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) );
+		}
+	} else {
+		$post_id = (int) get_queried_object_id();
+	}
+
+	return yg_cf7_is_german_language_page( $post_id );
+}
+
 add_filter( 'wpcf7_form_tag', 'yg_cf7_force_required_tag', 10, 1 );
 
 /**
@@ -120,15 +176,22 @@ function yg_cf7_force_required_tag( $tag ) {
 		return $tag;
 	}
 
-	if ( is_object( $tag ) ) {
-		$tag->type = $type . '*';
-	} else {
-		$tag['type'] = $type . '*';
+	$make_required = 'nearest_branch' !== $name || yg_cf7_branch_required_here();
+
+	if ( $make_required ) {
+		if ( is_object( $tag ) ) {
+			$tag->type = $type . '*';
+		} else {
+			$tag['type'] = $type . '*';
+		}
 	}
 
 	/*
-	 * A select also needs `first_as_label`, or making it required achieves
-	 * nothing.
+	 * A select also needs `first_as_label` - required or not.
+	 *
+	 * Required: without it making the field required achieves nothing.
+	 * Optional (branch since 1.1.0): without it an untouched field sends the
+	 * placeholder text as the branch instead of an empty value.
 	 *
 	 * Without it CF7 renders the placeholder as a real option whose value is
 	 * its own text - value="-- Select Your Branch --". That is a non-empty
