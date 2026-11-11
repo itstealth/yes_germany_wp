@@ -1,0 +1,514 @@
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap">
+<style id="ygt-css">
+/* University guide pages (TUM / TU Berlin / LMU), 2026-10-07: built in the site's own design so it sits with the
+   yellow site header - Poppins, brand yellow #FFCE00, red #CB372B, ink #16181a,
+   rounded cards like the Enquiry Form. Scoped to .ygt; px sizes, because the
+   theme sets the root font size to 10px. */
+.ygt{--ink:#16181a;--ink-2:#33363a;--ink-3:#5b6066;--y:#FFCE00;--y-soft:#fff6cc;--y-tint:#fffbea;
+  --red:#CB372B;--line:#ece7d6;--card:#fff;--r:16px;--max:1160px;
+  font-family:Poppins,system-ui,sans-serif;color:var(--ink-2);background:#fff;-webkit-font-smoothing:antialiased}
+.ygt *{box-sizing:border-box}
+.ygt .wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
+.ygt h1,.ygt h2,.ygt h3{font-family:Poppins,system-ui,sans-serif;color:var(--ink);margin:0 0 14px;letter-spacing:-.01em}
+.ygt h1{font-size:clamp(30px,3.6vw,44px);line-height:1.18;font-weight:800}
+.ygt h2{font-size:clamp(26px,2.8vw,36px);line-height:1.22;font-weight:800}
+.ygt h3{font-size:19px;line-height:1.35;font-weight:700}
+.ygt p{font-size:17px;line-height:1.75;color:var(--ink-2);margin:0 0 14px}
+.ygt a{color:var(--red);text-underline-offset:3px}
+.ygt img{display:block;max-width:100%;height:auto}
+.ygt ul{margin:0;padding:0}
+.ygt .hl{color:var(--red)}
+/* sections */
+.ygt section{padding:72px 0}
+.ygt section.alt{background:var(--y-tint)}
+.ygt .sec-head{text-align:center;max-width:820px;margin:0 auto 38px}
+.ygt .eyebrow{display:inline-block;background:var(--red);color:#fff;font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:6px 14px;border-radius:999px;margin-bottom:14px}
+.ygt .sec-head p{color:var(--ink-3)}
+.ygt .prose{max-width:860px;margin:0 auto}
+.ygt .after{max-width:860px;margin:26px auto 0;text-align:center;color:var(--ink-3);font-size:16px}
+/* buttons */
+.ygt .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--y);color:var(--ink);font-weight:700;font-size:16px;line-height:1.2;
+  padding:15px 28px;border-radius:12px;text-decoration:none;border:2px solid var(--y);transition:transform .15s,box-shadow .15s}
+.ygt .btn:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(203,55,43,.18);color:var(--ink)}
+.ygt .btn.dark{background:var(--ink);border-color:var(--ink);color:#fff}
+.ygt .btn.dark:hover{color:#fff}
+.ygt .btn.line{background:#fff;border-color:var(--ink)}
+.ygt .cta-row{display:flex;flex-wrap:wrap;gap:14px;margin:24px 0 8px}
+/* hero */
+.ygt .hero{background:linear-gradient(180deg,var(--y) 0%,#ffe066 100%);padding:28px 0 64px}
+.ygt .crumbs{font-size:13.5px;color:var(--ink-2);margin-bottom:24px}
+.ygt .crumbs a{color:var(--ink-2)}
+.ygt .hero-grid{display:grid;grid-template-columns:1.12fr .88fr;gap:44px;align-items:start}
+.ygt .hero .tag{display:inline-block;background:#fff;color:var(--ink);font-size:13px;font-weight:700;padding:7px 14px;border-radius:999px;margin-bottom:18px}
+.ygt .hero .tag::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:8px;vertical-align:1px}
+.ygt .hero p.lede{font-size:18px;color:var(--ink)}
+.ygt .facts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:22px 0 6px}
+.ygt .facts div{background:#fff;border-radius:12px;padding:14px 16px}
+.ygt .facts b{display:block;font-size:22px;font-weight:800;color:var(--red);line-height:1.1}
+.ygt .facts span{font-size:13.5px;color:var(--ink-3)}
+.ygt .form-card{scroll-margin-top:120px;filter:drop-shadow(0 18px 40px rgba(22,24,26,.18))}
+/* the form stays beside the hero's left column while it scrolls (desktop) */
+@media (min-width:901px){ .ygt .form-card{position:sticky;top:24px;align-self:start} }
+.ygt .hero p{color:var(--ink)}
+.ygt .hero-photo{margin:26px 0 0}
+.ygt .hero-photo img{width:100%;height:auto;border-radius:var(--r);box-shadow:0 16px 40px rgba(22,24,26,.18)}
+.ygt .form-card .wpcf7{margin:0}
+/* stats band */
+.ygt .stats{background:var(--ink);padding:44px 0}
+.ygt .stats .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;text-align:center}
+.ygt .stats b{display:block;font-size:40px;font-weight:800;color:var(--y);line-height:1}
+.ygt .stats span{display:block;font-size:14.5px;color:#d6d6d6;margin-top:8px}
+/* overview split */
+.ygt .split{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+.ygt .split img{width:100%;height:auto;border-radius:var(--r);box-shadow:0 16px 40px rgba(22,24,26,.14)}
+/* grids + cards */
+.ygt .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}
+.ygt .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.ygt .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
+.ygt .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:26px 26px 22px;position:relative;overflow:hidden;
+  box-shadow:0 6px 22px rgba(22,24,26,.05);height:100%}
+.ygt .card::before{content:"";position:absolute;left:0;top:0;right:0;height:5px;background:var(--y)}
+.ygt .card p,.ygt .card li{font-size:16px;line-height:1.7;color:var(--ink-2)}
+.ygt .card p:last-child{margin-bottom:0}
+.ygt .card .ico{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:var(--y-soft);font-size:22px;margin-bottom:14px}
+.ygt .card.wide{grid-column:1/-1}
+.ygt ul.ticks{list-style:none;margin:6px 0 14px}
+.ygt ul.ticks li{position:relative;padding-left:28px;margin:0 0 9px}
+.ygt ul.ticks li::before{content:"✓";position:absolute;left:0;top:1px;width:19px;height:19px;border-radius:50%;background:var(--y);color:var(--ink);font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.ygt .chips{display:flex;flex-wrap:wrap;gap:10px;list-style:none;margin:10px 0 4px;justify-content:center}
+.ygt .chips.left{justify-content:flex-start}
+.ygt .chips li{background:#fff;border:1.5px solid var(--y);border-radius:999px;padding:8px 16px;font-size:14.5px;font-weight:500;color:var(--ink)}
+.ygt .note{display:flex;gap:14px;background:#fff;border:1px solid var(--line);border-left:5px solid var(--red);border-radius:12px;padding:18px 22px;max-width:860px;margin:28px auto 0}
+.ygt .note p{margin:0;font-size:16px}
+.ygt .note b{color:var(--ink)}
+/* tables */
+.ygt .tbl{overflow-x:auto;border-radius:var(--r);border:1px solid var(--line);background:#fff;box-shadow:0 6px 22px rgba(22,24,26,.05)}
+.ygt table{border-collapse:collapse;width:100%;margin:0;border:0;font-size:16px}
+.ygt th,.ygt td{text-align:left;padding:15px 20px;border:0;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-2);line-height:1.6}
+.ygt tr:last-child th,.ygt tr:last-child td{border-bottom:0}
+.ygt thead th{background:var(--y);color:var(--ink);font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.ygt tbody th{font-weight:600;color:var(--ink);width:30%}
+.ygt tbody tr:nth-child(even){background:#fffdf4}
+.ygt .tbl-title{font-size:21px;margin:42px 0 16px}
+.ygt .tbl-note{font-size:15px;color:var(--ink-3);margin:12px 0 0}
+/* steps */
+.ygt .steps{list-style:none;display:grid;gap:18px;max-width:960px;margin:0 auto;counter-reset:s}
+.ygt .steps > li{counter-increment:s;display:grid;grid-template-columns:58px 1fr;gap:20px;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:24px 26px;box-shadow:0 6px 22px rgba(22,24,26,.05)}
+.ygt .steps > li::before{content:counter(s);width:52px;height:52px;border-radius:50%;background:var(--y);color:var(--ink);font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.ygt .steps h3{margin:4px 0 8px}
+.ygt .steps p{font-size:16px;margin-bottom:8px}
+.ygt .steps .chips{justify-content:flex-start}
+/* pathway */
+.ygt .path{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;list-style:none;margin:18px 0}
+.ygt .path li{background:var(--ink);color:#fff;border-radius:10px;padding:11px 16px;font-size:14.5px;font-weight:600}
+.ygt .path li + li::before{content:"→";color:var(--y);margin-right:9px;font-weight:800}
+/* faq */
+.ygt .faq{max-width:900px;margin:0 auto;display:grid;gap:12px}
+.ygt details{background:#fff;border:1px solid var(--line);border-radius:14px;padding:0 22px}
+.ygt details[open]{border-color:var(--y);box-shadow:0 6px 22px rgba(22,24,26,.06)}
+.ygt summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:19px 0;font-weight:600;font-size:17px;color:var(--ink)}
+.ygt summary::-webkit-details-marker{display:none}
+.ygt summary::after{content:"+";flex:0 0 30px;height:30px;border-radius:50%;background:var(--y);color:var(--ink);font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.ygt details[open] summary::after{content:"–"}
+.ygt details p{margin:0 0 20px;font-size:16px}
+/* sources */
+.ygt .sources{list-style:none;display:grid;grid-template-columns:repeat(2,1fr);gap:10px 32px;max-width:900px;margin:22px auto 0}
+.ygt .sources li{font-size:15.5px;padding-left:22px;position:relative}
+.ygt .sources li::before{content:"↗";position:absolute;left:0;color:var(--red);font-weight:700}
+/* closing cta */
+.ygt .endcta{background:var(--y);text-align:center;padding:64px 0}
+.ygt .endcta p{max-width:680px;margin:0 auto 22px;color:var(--ink)}
+@media (max-width:1024px){
+  .ygt .grid-4{grid-template-columns:repeat(2,1fr)}
+  .ygt .grid-3{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:900px){
+  .ygt .hero-grid,.ygt .split{grid-template-columns:1fr;gap:32px}
+  .ygt .stats .grid{grid-template-columns:repeat(2,1fr)}
+  .ygt section{padding:54px 0}
+}
+@media (max-width:640px){
+  .ygt .wrap{padding:0 18px}
+  .ygt .grid-2,.ygt .grid-3,.ygt .grid-4,.ygt .sources{grid-template-columns:1fr}
+  .ygt .facts{grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .ygt .facts b{font-size:18px}.ygt .facts div{padding:12px}
+  .ygt .btn{width:100%}
+  .ygt p{font-size:16px}
+  .ygt .steps > li{grid-template-columns:1fr;gap:12px;padding:20px}
+  .ygt th,.ygt td{padding:12px 14px;font-size:15px}
+  .ygt .sec-head{text-align:left}
+  .ygt .hero .tag{font-size:12px;padding:6px 12px}
+  .ygt .chips{justify-content:flex-start}
+}
+
+/* extra blocks used by the TU Berlin and LMU pages */
+.ygt .grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:18px}
+.ygt .tile{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:24px 20px;text-align:center;box-shadow:0 6px 22px rgba(22,24,26,.05);border-top:5px solid var(--y)}
+.ygt .tile .ico{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:14px;background:var(--y-soft);font-size:26px;margin-bottom:12px}
+.ygt .tile h3{font-size:17px;margin:0}
+.ygt .card.center{text-align:center}
+.ygt .card .big{display:block;font-size:44px;font-weight:800;color:var(--red);line-height:1;margin:6px 0 10px}
+.ygt .card.wide2{grid-column:span 2}
+@media (max-width:1024px){ .ygt .grid-5{grid-template-columns:repeat(3,1fr)} }
+@media (max-width:640px){ .ygt .grid-5{grid-template-columns:1fr 1fr} .ygt .card.wide2{grid-column:auto} }
+</style>
+
+<div class="ygt">
+
+<!-- ================= HERO ================= -->
+<div class="hero">
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="https://www.yesgermany.com/">Home</a> › <span aria-current="page">Technical University of Berlin (TU Berlin)</span></nav>
+    <div class="hero-grid">
+      <div>
+        <span class="tag">Public research university · Berlin, Germany</span>
+        <h1>Technical University of Berlin</h1>
+        <p class="lede">Technical University of Berlin (TU Berlin), officially Technische Universität Berlin, is a public research university in Berlin known for its strong focus on engineering, technology, natural sciences, planning, economics, management, and interdisciplinary research. With around 32,000 students in summer semester 2026, TU Berlin has a substantial international student community.</p>
+        <p>For international students, TU Berlin offers a wide range of Bachelor's and Master's programmes, although the language of instruction varies considerably by programme. Students applying with international academic qualifications also need to pay particular attention to the university's <a href="https://www.tu.berlin/en/studierendensekretariat/topics-a-z/preliminary-review-documentation-vpd-from-uni-assist" target="_blank" rel="noopener">VPD requirement through uni-assist</a>, programme-specific eligibility, and language requirements.</p>
+        <p>For Indian students planning to study in Germany, TU Berlin can be particularly relevant for fields ranging from engineering and computer science to architecture, urban planning, mathematics, management, and interdisciplinary technology studies.</p>
+        <figure class="hero-photo"><img src="/wp-content/uploads/2023/07/Technical-University-of-Berlin.webp" alt="Technical University of Berlin campus building" width="600" height="400" loading="eager"></figure>
+      </div>
+      <aside class="form-card" id="eligibility" aria-label="Check your eligibility">
+        [contact-form-7 id="139211" title="Enquiry Form"]
+      </aside>
+    </div>
+  </div>
+</div>
+
+<!-- ================= STATS ================= -->
+<div class="stats" aria-label="TU Berlin in numbers">
+  <div class="wrap"><div class="grid">
+    <div><b>32,252</b><span>Students in Summer Semester 2026</span></div>
+    <div><b>9,866</b><span>Foreign nationals in Summer Semester 2026</span></div>
+    <div><b>50 + 92</b><span>Bachelor's + Master's programmes</span></div>
+    <div><b>19</b><span>English-taught programmes</span></div>
+  </div></div>
+</div>
+
+<!-- ================= AT A GLANCE ================= -->
+<section id="glance" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Quick facts</span><h2>Technical University of Berlin at a Glance</h2></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Particular</th><th>Details</th></tr></thead>
+      <tbody>
+        <tr><th>University</th><td>Technische Universität Berlin</td></tr>
+        <tr><th>Short name</th><td>TU Berlin</td></tr>
+        <tr><th>Location</th><td>Berlin, Germany</td></tr>
+        <tr><th>Type</th><td>Public research university</td></tr>
+        <tr><th>Students</th><td>32,252 in Summer Semester 2026</td></tr>
+        <tr><th>International students</th><td>9,866 foreign nationals in Summer Semester 2026</td></tr>
+        <tr><th>Bachelor's programmes</th><td>50</td></tr>
+        <tr><th>Master's programmes</th><td>92</td></tr>
+        <tr><th>English-taught programmes</th><td>19</td></tr>
+        <tr><th>German/English programmes</th><td>7</td></tr>
+        <tr><th>Main academic areas</th><td>Engineering, Natural Sciences, Planning, Economics &amp; Management, Humanities, and Social Sciences</td></tr>
+        <tr><th>Semester fee, Winter 2026/27</th><td>€379.06, including the current semester-ticket contribution</td></tr>
+        <tr><th>Tuition fees</th><td>Programme/state-specific; TU Berlin charges semester fees</td></tr>
+        <tr><th>Academic calendar</th><td>Winter and Summer semesters</td></tr>
+        <tr><th>Website</th><td><a href="https://www.tu.berlin/en/" target="_blank" rel="noopener">TU Berlin official website</a></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ================= WHY STUDY ================= -->
+<section id="why-tu-berlin">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Why TU Berlin</span><h2>Why Study at the Technical University of Berlin?</h2>
+      <p>Choosing TU Berlin is about more than studying at a technical university. Its academic portfolio combines technology and natural sciences with planning, economics, management, humanities, and social sciences. The university describes its programme portfolio as covering these disciplines under one institution, with interdisciplinary study forming an important part of its academic approach.</p></div>
+    <div class="grid-5">
+      <div class="tile"><span class="ico">⚙️</span><h3>Strong focus on technology and engineering</h3></div>
+      <div class="tile"><span class="ico">🧭</span><h3>More than a traditional engineering university</h3></div>
+      <div class="tile"><span class="ico">🔬</span><h3>Research-driven academic environment</h3></div>
+      <div class="tile"><span class="ico">📍</span><h3>Located in Berlin</h3></div>
+      <div class="tile"><span class="ico">🌍</span><h3>International student community</h3></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= RANKINGS ================= -->
+<section id="rankings" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Rankings</span><h2>TU Berlin Rankings</h2>
+      <p>TU Berlin's current position can be considered alongside its research profile and international orientation rather than through rankings alone.</p>
+      <p>In the <a href="https://www.tu.berlin/en/news/detail/qs-world-university-rankings-2027-bestaetigen-starke-position-der-tu-berlin" target="_blank" rel="noopener">QS World University Rankings 2027</a>, TU Berlin was ranked:</p></div>
+    <div class="tbl" style="max-width:760px;margin:0 auto"><table>
+      <thead><tr><th>Ranking indicator</th><th>TU Berlin position</th></tr></thead>
+      <tbody>
+        <tr><th>Germany</th><td>8th</td></tr>
+        <tr><th>Germany's major universities of technology</th><td>4th</td></tr>
+        <tr><th>Worldwide</th><td>158th</td></tr>
+        <tr><th>Europe</th><td>65th</td></tr>
+      </tbody>
+    </table></div>
+    <p class="after">The 2027 QS ranking was published in June 2026. TU Berlin reported particularly strong results for employer reputation, academic reputation, and internationalisation.</p>
+    <div class="note"><p><b>Note:</b> Rankings change every year and use different methodologies. Students should therefore compare the ranking year, methodology, and subject-specific performance before using rankings as a deciding factor.</p></div>
+  </div>
+</section>
+
+<!-- ================= COURSES ================= -->
+<section id="courses">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Programmes</span><h2>TU Berlin Courses and Study Programmes</h2>
+      <p>TU Berlin currently lists more than 140 degree programmes, including <b>50 Bachelor's</b> and <b>92 Master's programmes</b> in its programme database. The university's academic portfolio covers several broad areas.</p></div>
+    <div class="grid-3">
+      <div class="card"><span class="ico">⚙️</span><h3>Engineering and Technology</h3><p>Students can explore programmes related to:</p>
+        <ul class="ticks"><li>Mechanical Engineering</li><li>Electrical Engineering</li><li>Computer Engineering</li><li>Chemical Engineering</li><li>Automotive Engineering</li><li>Aerospace and Aeronautics</li><li>Biomedical Engineering</li><li>Biotechnology</li><li>Computer Science</li><li>Information and Communication Technology</li></ul></div>
+      <div class="card"><span class="ico">🧮</span><h3>Natural Sciences and Mathematics</h3><p>Relevant areas include:</p>
+        <ul class="ticks"><li>Mathematics</li><li>Physics</li><li>Chemistry</li><li>Biological Chemistry</li><li>Scientific Computing</li><li>Technomathematics</li><li>Business Mathematics</li></ul></div>
+      <div class="card"><span class="ico">🏛️</span><h3>Architecture and Planning</h3><p>TU Berlin also offers programmes connected with:</p>
+        <ul class="ticks"><li>Architecture</li><li>Urban Planning</li><li>Landscape Architecture</li><li>Urban and Regional Planning</li><li>Architecture Typology</li><li>Design and Computation</li></ul></div>
+      <div class="card"><span class="ico">📈</span><h3>Economics and Management</h3><p>Students interested in the intersection of technology and business can explore areas including:</p>
+        <ul class="ticks"><li>Economics</li><li>Management</li><li>Innovation</li><li>Entrepreneurship</li><li>Technology and business-related disciplines</li></ul></div>
+      <div class="card"><span class="ico">📚</span><h3>Humanities and Social Sciences</h3><p>The university's broader academic portfolio also includes subjects in:</p>
+        <ul class="ticks"><li>Social Sciences</li><li>Humanities</li><li>Art Studies</li><li>Media Studies</li><li>Communication</li><li>Educational Sciences</li></ul></div>
+      <div class="card"><span class="ico">🔎</span><h3>Check the programme database</h3>
+        <p>The exact programme list, language, admission status, and start semester should always be checked on TU Berlin's current programme database because these details vary by course.</p>
+        <p style="margin-top:18px"><a class="btn" href="https://www.tu.berlin/en/studying/study-programs/all-programs-offered" target="_blank" rel="noopener">Explore all TU Berlin degree programmes ↗</a></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ENGLISH-TAUGHT ================= -->
+<section id="english-taught" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Language</span><h2>English-Taught Courses at TU Berlin</h2>
+      <p>One important point for international applicants is that not all TU Berlin programmes are taught in English. The <a href="https://www.tu.berlin/en/studying/study-programs/all-programs-offered" target="_blank" rel="noopener">current programme database</a> lists:</p></div>
+    <div class="grid-3">
+      <div class="card center"><b class="big">19</b><p>programmes in English</p></div>
+      <div class="card center"><b class="big">7</b><p>programmes in German and English</p></div>
+      <div class="card center"><b class="big">Most</b><p>The majority of programmes are listed as German-taught.</p></div>
+    </div>
+    <div class="prose" style="margin-top:28px">
+      <p>This distinction is particularly important for Indian students. An applicant should not assume that a programme at a technical university is automatically available in English.</p>
+      <p>For Master's applicants, language requirements depend on the individual programme. TU Berlin states that English proficiency is required for English-language degree programmes, while German-language programmes require the relevant German-language qualification.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ADMISSION REQUIREMENTS ================= -->
+<section id="admission-requirements">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Eligibility</span><h2>TU Berlin Admission Requirements</h2>
+      <p>Admission requirements depend on the degree programme and the applicant's previous qualification.</p></div>
+    <div class="grid-2">
+      <div class="card"><span class="ico">🎒</span><h3>Bachelor's Admission Requirements</h3>
+        <p>For Bachelor's applicants, the main requirements generally include:</p>
+        <ul class="ticks"><li>A recognised higher education entrance qualification</li><li>Programme-specific academic requirements where applicable</li><li>Required language proficiency</li><li>Required application documents</li><li>VPD from uni-assist for applicants with international educational qualifications</li></ul>
+        <p>TU Berlin states that German is required for all undergraduate degree programmes. Therefore, Indian students looking for a Bachelor's degree should check the language requirements, particularly carefully, before applying.</p>
+        <p>The exact admission procedure also depends on whether the programme has restricted admission (NC) or open admission.</p></div>
+      <div class="card"><span class="ico">📚</span><h3>Master's Admission Requirements</h3>
+        <p>Applicants to a Master's programme generally need:</p>
+        <ul class="ticks"><li>A completed Bachelor's or equivalent first university degree</li><li>A relevant academic background</li><li>Programme-specific subject requirements</li><li>Required language proficiency</li><li>Required academic documents</li><li>VPD where applicable</li></ul>
+        <p>TU Berlin specifically notes that Master's programmes can have additional subject-specific requirements. These may include particular coursework, internships, or other conditions defined by the individual programme.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= INDIAN STUDENTS: DIFFERENCES ================= -->
+<section id="indian-students" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">For Indian students</span><h2>What Makes the TU Berlin Application Different for Indian Students?</h2>
+      <p>Indian students applying with international academic qualifications need to pay attention to a few additional steps.</p></div>
+    <div class="grid-2">
+      <div class="card"><span class="ico">📄</span><h3>VPD through uni-assist</h3>
+        <p>One of the most important requirements is the Preliminary Review Documentation (VPD).</p>
+        <p>TU Berlin states that applicants with an international university entrance qualification or primary university degree need a VPD from uni-assist. After receiving the VPD, the student must apply through the TU Berlin application portal within the relevant deadline.</p>
+        <p>The university recommends requesting the VPD early because processing can take <b>4–6 weeks</b>. The VPD issued for TU Berlin is valid for <b>one year</b>.</p></div>
+      <div class="card"><span class="ico">🗂️</span><h3>Academic document evaluation</h3>
+        <p>For Master's applicants with a foreign Bachelor's degree, the application may require:</p>
+        <ul class="ticks"><li>Bachelor's degree certificate</li><li>Transcript of records</li><li>Details of subjects and credits</li><li>Official translations where documents are not issued in German or English</li><li>VPD from uni-assist</li><li>Additional programme-specific documents where applicable</li></ul>
+        <p>TU Berlin's application checklist specifies these academic documents for applicants with a primary university degree from a foreign university.</p></div>
+      <div class="card"><span class="ico">🗣️</span><h3>Language certificates</h3>
+        <p>Do not assume that one language requirement applies across all TU Berlin courses.</p>
+        <p>English-language Master's programmes require proof of English proficiency, while German-language programmes require the applicable German-language qualification. Some programmes may have additional language requirements.</p></div>
+      <div class="card"><span class="ico">📋</span><h3>Programme-specific requirements</h3>
+        <p>TU Berlin does not use one universal set of Master's admission requirements for every course. The relevant programme's admission regulations should therefore be checked before preparing the application.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= APPLICATION PROCESS ================= -->
+<section id="how-to-apply">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Step by step</span><h2>TU Berlin Application Process for International Students</h2>
+      <p>The application process can be broadly understood as follows:</p></div>
+    <ol class="steps">
+      <li><div><h3>Choose your degree programme</h3><p>Start by checking the TU Berlin programme database for:</p>
+        <ul class="chips"><li>Degree level</li><li>Language of instruction</li><li>Admission status</li><li>Programme start</li><li>Subject-specific requirements</li></ul></div></li>
+      <li><div><h3>Check your academic eligibility</h3><p>Review the admission requirements for your specific Bachelor's or Master's programme.</p></div></li>
+      <li><div><h3>Apply for the VPD</h3><p>If you have an international university entrance qualification or primary university degree, request the TU Berlin VPD through uni-assist.</p></div></li>
+      <li><div><h3>Prepare your documents</h3><p>Depending on the programme, these may include:</p>
+        <ul class="chips"><li>Academic certificates</li><li>Transcripts</li><li>VPD</li><li>Language certificate</li><li>CV</li><li>Motivation letter</li><li>Programme-specific documents</li></ul>
+        <p style="margin-top:10px">Not every document is required for every programme, so applicants should follow the individual course requirements.</p></div></li>
+      <li><div><h3>Submit the TU Berlin application</h3><p>After receiving the required VPD, apply through the relevant TU Berlin application portal before the programme deadline.</p></div></li>
+      <li><div><h3>Wait for the admission decision</h3><p>If admitted, follow the instructions in the admission letter and complete enrolment within the specified deadline.</p></div></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ================= DEADLINES ================= -->
+<section id="deadlines" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Dates</span><h2>TU Berlin Application Deadlines</h2>
+      <p>Deadlines vary by programme, degree level, admission status, and semester. For <b>Winter Semester 2026/27</b>, TU Berlin lists the following general deadlines:</p></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Programme</th><th>Application period</th></tr></thead>
+      <tbody>
+        <tr><th>Bachelor's, restricted admission, international qualification</th><td>1 June – 15 July 2026</td></tr>
+        <tr><th>Bachelor's, open admission, international qualification</th><td>1 June – 31 August 2026</td></tr>
+        <tr><th>German-language Master's, restricted admission</th><td>1 April – 15 June 2026</td></tr>
+        <tr><th>English-language Master's, restricted admission</th><td>1 April – 15 May 2026</td></tr>
+        <tr><th>Open-admission Master's</th><td>1 June – 31 August 2026</td></tr>
+      </tbody>
+    </table></div>
+    <p class="after">These are general university deadlines and not a substitute for checking the individual programme page. TU Berlin also notes that applicants with international qualifications follow the applicable deadlines but need the VPD from uni-assist.</p>
+    <h3 class="tbl-title" style="text-align:center">Summer Semester 2027</h3>
+    <p class="after" style="margin:0 auto 18px">For Summer Semester 2027, TU Berlin's published general dates include:</p>
+    <div class="tbl" style="max-width:760px;margin:0 auto"><table>
+      <thead><tr><th>Programme</th><th>Application period</th></tr></thead>
+      <tbody>
+        <tr><th>Bachelor's restricted admission</th><td>1 December 2026 – 15 January 2027</td></tr>
+        <tr><th>Bachelor's open admission</th><td>1 December 2026 – 28 February 2027</td></tr>
+        <tr><th>Master's restricted admission</th><td>1 December 2026 – 15 January 2027</td></tr>
+        <tr><th>Master's open admission</th><td>1 December 2026 – 28 February 2027</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note"><p><b>Important:</b> TU Berlin advises applicants to check the current deadline information regularly because dates can change.</p></div>
+  </div>
+</section>
+
+<!-- ================= FEES ================= -->
+<section id="tuition-fees">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Costs</span><h2>TU Berlin Tuition Fees and Cost of Study</h2>
+      <p>TU Berlin's semester contribution should not be confused with tuition fees. For Winter Semester 2026/27, the university lists:</p></div>
+    <div class="tbl" style="max-width:760px;margin:0 auto"><table>
+      <thead><tr><th>Component</th><th>Amount</th></tr></thead>
+      <tbody>
+        <tr><th>Administrative fee</th><td>€50.00</td></tr>
+        <tr><th>Student body contribution</th><td>€14.56</td></tr>
+        <tr><th>Studierendenwerk contribution</th><td>€85.00</td></tr>
+        <tr><th>Semester ticket contribution</th><td>€226.80</td></tr>
+        <tr><th>Social fund contribution</th><td>€2.70</td></tr>
+        <tr><th>Total including semester ticket</th><td><b>€379.06</b></td></tr>
+      </tbody>
+    </table></div>
+    <p class="after">The university explains that the <a href="https://www.tu.berlin/en/international/getting-started-at-tu-berlin/living-in-berlin/financial-matters" target="_blank" rel="noopener">semester contribution is not a tuition fee</a>. It includes contributions to student services and the semester ticket, among other components.</p>
+    <div class="grid-2" style="margin-top:32px">
+      <div class="card"><span class="ico">🧾</span><h3>Students should also budget separately for</h3>
+        <ul class="ticks"><li>Accommodation</li><li>Food</li><li>Health insurance</li><li>Transportation and personal expenses</li><li>Study materials</li><li>Visa and residence-related costs where applicable</li></ul></div>
+      <div class="card"><span class="ico">💶</span><h3>Living expenses</h3>
+        <p>TU Berlin's international student guidance currently advises students to plan for <b>at least €1,000 per month</b> for living expenses in Berlin.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= COST OF LIVING + SCHOLARSHIPS ================= -->
+<section id="cost-of-living" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Living in Berlin</span><h2>Cost of Living in Berlin for Students</h2>
+      <p>Berlin is a major European capital, and living costs can vary substantially according to accommodation and lifestyle. The largest expense for most students is likely to be accommodation.</p></div>
+    <div class="grid-2">
+      <div class="card"><span class="ico">🏠</span><h3>A student budget should account for</h3>
+        <ul class="ticks"><li>Rent and utilities</li><li>Food and groceries</li><li>Health insurance</li><li>Public transport</li><li>Study materials</li><li>Personal expenses</li></ul></div>
+      <div class="card"><span class="ico">✅</span><h3>Plan your finances first</h3>
+        <p>Students should prepare their financial plan before travelling to Germany rather than assuming that part-time employment will cover all expenses. TU Berlin itself advises prospective students to ensure that they can finance their studies before coming to Germany.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="scholarships">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Funding</span><h2>Scholarships and Funding Options</h2>
+      <p>International students should investigate funding opportunities before beginning their studies. Potential sources include:</p>
+      <ul class="chips"><li>DAAD scholarships</li><li>University-related funding opportunities</li><li>External foundations</li><li>Research funding for Master's and doctoral students</li><li>Scholarships offered through German and European organisations</li></ul></div>
+    <div class="note"><p>Scholarship eligibility varies by programme, academic level, nationality, and funding purpose. Students should therefore check the individual scholarship conditions rather than assuming that every scholarship is available to international students.</p></div>
+  </div>
+</section>
+
+<!-- ================= STUDENT LIFE + RESEARCH ================= -->
+<section id="student-life" class="alt">
+  <div class="wrap">
+    <div class="grid-2">
+      <div class="card"><span class="ico">🎓</span><h3>Student Life at TU Berlin</h3>
+        <p><a href="https://www.tu.berlin/en/studienberatung/wdso" target="_blank" rel="noopener">Studying at TU Berlin</a> provides access to a large university environment in the centre of Berlin.</p>
+        <p>With more than 32,000 students and nearly 10,000 foreign nationals, the university has a sizeable international community.</p>
+        <p>Students can also benefit from Berlin's wider academic and research ecosystem. TU Berlin is part of the Berlin University Alliance, linking it with Freie Universität Berlin, Humboldt-Universität zu Berlin, and Charité – Universitätsmedizin Berlin.</p>
+        <p>The university also offers academic advising and international information sessions for prospective students.</p></div>
+      <div class="card"><span class="ico">🔬</span><h3>Research and Career Opportunities at TU Berlin</h3>
+        <p>TU Berlin combines academic education with a strong research orientation. Its research environment includes work in areas such as:</p>
+        <ul class="chips left"><li>Mathematics</li><li>Artificial intelligence and intelligent systems</li><li>Catalysis</li><li>Digital technologies</li><li>Energy</li><li>Mobility</li><li>Biotechnology</li><li>Medical technology</li><li>Sustainable development</li></ul>
+        <p style="margin-top:12px">The university participates in major research collaborations and the Berlin University Alliance. Its research environment also connects students and researchers with institutions and organisations across Berlin.</p>
+        <p>For students considering research-oriented Master's or doctoral study, this wider ecosystem can be an important factor when comparing universities.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WHO SHOULD CONSIDER ================= -->
+<section id="who-should-consider">
+  <div class="wrap">
+    <div class="grid-2">
+      <div class="card"><span class="ico">🙋</span><h3>Who Should Consider TU Berlin?</h3>
+        <p>TU Berlin may be a strong option for students who:</p>
+        <ul class="ticks"><li>Want to study engineering or technology in Germany</li><li>Are interested in research-driven education</li><li>Want access to interdisciplinary academic fields</li><li>Are considering careers connected with technology, engineering, or research</li><li>Want to study in Berlin</li><li>Are comfortable meeting programme-specific academic and language requirements</li><li>Are prepared to research individual course requirements rather than relying on university-wide assumptions</li></ul>
+        <p>It may require more careful planning for students specifically looking for English-taught Bachelor's programmes, because most programmes in TU Berlin's current database are listed as German-taught.</p></div>
+      <div class="card"><span class="ico">🇮🇳</span><h3>Technical University of Berlin for Indian Students</h3>
+        <p>For Indian students, TU Berlin can be particularly relevant when the intended field matches its strengths in technology, engineering, natural sciences, planning, and interdisciplinary research. However, the application should be approached programme by programme.</p>
+        <p>Before applying, Indian applicants should verify:</p>
+        <ul class="ticks"><li>Whether the chosen programme is taught in English or German.</li><li>Whether the programme is open or admission-restricted.</li><li>Whether a VPD from uni-assist is required.</li><li>Whether their Indian qualification meets the academic entry requirements.</li><li>Which language certificate is accepted.</li><li>Whether the Master's programme has subject-specific requirements.</li><li>The exact application deadline.</li><li>The semester contribution and expected living costs.</li><li>Any additional documents required by the individual programme.</li></ul>
+        <p>The VPD point is particularly important because TU Berlin explicitly requires applicants with international university entrance qualifications or primary university degrees to obtain TU Berlin-specific preliminary review documentation through uni-assist.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= GOOD FOR INTERNATIONAL STUDENTS ================= -->
+<section id="international-students" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Verdict</span><h2>Is TU Berlin Good for International Students?</h2>
+      <p>TU Berlin can be a strong choice for international students looking for a research-oriented public university with a broad technical and interdisciplinary academic portfolio.</p>
+      <p>Its current student population includes thousands of foreign nationals, while its participation in the Berlin University Alliance and Germany's Excellence Strategy adds a substantial research dimension.</p>
+      <p>The main consideration is programme fit. Students should not choose TU Berlin only because it is a well-known technical university. The language of instruction, academic prerequisites, admission status, and individual programme structure should all be checked before applying.</p></div>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">FAQ</span><h2>Frequently Asked Questions About TU Berlin</h2></div>
+    <div class="faq">
+      <details open><summary>Is TU Berlin a public university?</summary><p>Yes. Technische Universität Berlin is a public research university in Berlin, Germany.</p></details>
+      <details><summary>Is German required to study at TU Berlin?</summary><p>It depends on the programme. TU Berlin states that German is required for undergraduate programmes, while Master's programmes can be taught in German, English, or both depending on the course.</p></details>
+      <details><summary>What is the TU Berlin application deadline?</summary><p>There is no single deadline for every programme. Deadlines vary according to degree level, admission status, programme and semester. Applicants should check the specific programme before applying.</p></details>
+      <details><summary>What should Indian students check before applying to TU Berlin?</summary><p>They should check the programme's language, academic eligibility, VPD requirement, programme-specific admission conditions, required documents, and exact application deadline before submitting an application.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FINAL TAKEAWAY ================= -->
+<section id="final-takeaway" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Summary</span><h2>Final Takeaway</h2>
+      <p>The Technical University of Berlin combines a strong technical and research orientation with a broader academic portfolio covering engineering, natural sciences, planning, economics, management, humanities, and social sciences.</p>
+      <p>For Indian students, the university can be particularly attractive for technology- and research-oriented Master's study. However, programme-level research is essential because language requirements, admission conditions, and deadlines differ significantly between courses.</p>
+      <p>The most important preparation step is therefore not simply choosing TU Berlin but identifying the right TU Berlin programme and checking its individual eligibility and application requirements well before the deadline.</p>
+      <div class="cta-row" style="justify-content:center"><a class="btn" href="https://www.tu.berlin/en/studying/applying-and-enrolling/" target="_blank" rel="noopener">Check TU Berlin's official application and enrolment information ↗</a></div></div>
+  </div>
+</section>
+
+<!-- ================= CLOSING CTA ================= -->
+<div class="endcta">
+  <div class="wrap">
+    <h2>Planning to apply to TU Berlin?</h2>
+    <p>Get a free profile evaluation from YES Germany: programme shortlisting, VPD through uni-assist, documents and your TU Berlin application, planned around your intake.</p>
+    <div class="cta-row" style="justify-content:center"><a class="btn dark" href="#eligibility">Check your eligibility</a><a class="btn line" href="tel:+918070606070">Call +91 80706 06070</a></div>
+  </div>
+</div>
+
+</div>
+
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is TU Berlin a public university?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Technische Universität Berlin is a public research university in Berlin, Germany."}}, {"@type": "Question", "name": "Is German required to study at TU Berlin?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on the programme. TU Berlin states that German is required for undergraduate programmes, while Master's programmes can be taught in German, English, or both depending on the course."}}, {"@type": "Question", "name": "What is the TU Berlin application deadline?", "acceptedAnswer": {"@type": "Answer", "text": "There is no single deadline for every programme. Deadlines vary according to degree level, admission status, programme and semester. Applicants should check the specific programme before applying."}}, {"@type": "Question", "name": "What should Indian students check before applying to TU Berlin?", "acceptedAnswer": {"@type": "Answer", "text": "They should check the programme's language, academic eligibility, VPD requirement, programme-specific admission conditions, required documents, and exact application deadline before submitting an application."}}]}
+</script>

@@ -1,0 +1,552 @@
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap">
+<style id="ygt-css">
+/* University guide pages (TUM / TU Berlin / LMU), 2026-10-07: built in the site's own design so it sits with the
+   yellow site header - Poppins, brand yellow #FFCE00, red #CB372B, ink #16181a,
+   rounded cards like the Enquiry Form. Scoped to .ygt; px sizes, because the
+   theme sets the root font size to 10px. */
+.ygt{--ink:#16181a;--ink-2:#33363a;--ink-3:#5b6066;--y:#FFCE00;--y-soft:#fff6cc;--y-tint:#fffbea;
+  --red:#CB372B;--line:#ece7d6;--card:#fff;--r:16px;--max:1160px;
+  font-family:Poppins,system-ui,sans-serif;color:var(--ink-2);background:#fff;-webkit-font-smoothing:antialiased}
+.ygt *{box-sizing:border-box}
+.ygt .wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
+.ygt h1,.ygt h2,.ygt h3{font-family:Poppins,system-ui,sans-serif;color:var(--ink);margin:0 0 14px;letter-spacing:-.01em}
+.ygt h1{font-size:clamp(30px,3.6vw,44px);line-height:1.18;font-weight:800}
+.ygt h2{font-size:clamp(26px,2.8vw,36px);line-height:1.22;font-weight:800}
+.ygt h3{font-size:19px;line-height:1.35;font-weight:700}
+.ygt p{font-size:17px;line-height:1.75;color:var(--ink-2);margin:0 0 14px}
+.ygt a{color:var(--red);text-underline-offset:3px}
+.ygt img{display:block;max-width:100%;height:auto}
+.ygt ul{margin:0;padding:0}
+.ygt .hl{color:var(--red)}
+/* sections */
+.ygt section{padding:72px 0}
+.ygt section.alt{background:var(--y-tint)}
+.ygt .sec-head{text-align:center;max-width:820px;margin:0 auto 38px}
+.ygt .eyebrow{display:inline-block;background:var(--red);color:#fff;font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:6px 14px;border-radius:999px;margin-bottom:14px}
+.ygt .sec-head p{color:var(--ink-3)}
+.ygt .prose{max-width:860px;margin:0 auto}
+.ygt .after{max-width:860px;margin:26px auto 0;text-align:center;color:var(--ink-3);font-size:16px}
+/* buttons */
+.ygt .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--y);color:var(--ink);font-weight:700;font-size:16px;line-height:1.2;
+  padding:15px 28px;border-radius:12px;text-decoration:none;border:2px solid var(--y);transition:transform .15s,box-shadow .15s}
+.ygt .btn:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(203,55,43,.18);color:var(--ink)}
+.ygt .btn.dark{background:var(--ink);border-color:var(--ink);color:#fff}
+.ygt .btn.dark:hover{color:#fff}
+.ygt .btn.line{background:#fff;border-color:var(--ink)}
+.ygt .cta-row{display:flex;flex-wrap:wrap;gap:14px;margin:24px 0 8px}
+/* hero */
+.ygt .hero{background:linear-gradient(180deg,var(--y) 0%,#ffe066 100%);padding:28px 0 64px}
+.ygt .crumbs{font-size:13.5px;color:var(--ink-2);margin-bottom:24px}
+.ygt .crumbs a{color:var(--ink-2)}
+.ygt .hero-grid{display:grid;grid-template-columns:1.12fr .88fr;gap:44px;align-items:start}
+.ygt .hero .tag{display:inline-block;background:#fff;color:var(--ink);font-size:13px;font-weight:700;padding:7px 14px;border-radius:999px;margin-bottom:18px}
+.ygt .hero .tag::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:8px;vertical-align:1px}
+.ygt .hero p.lede{font-size:18px;color:var(--ink)}
+.ygt .facts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:22px 0 6px}
+.ygt .facts div{background:#fff;border-radius:12px;padding:14px 16px}
+.ygt .facts b{display:block;font-size:22px;font-weight:800;color:var(--red);line-height:1.1}
+.ygt .facts span{font-size:13.5px;color:var(--ink-3)}
+.ygt .form-card{scroll-margin-top:120px;filter:drop-shadow(0 18px 40px rgba(22,24,26,.18))}
+/* the form stays beside the hero's left column while it scrolls (desktop) */
+@media (min-width:901px){ .ygt .form-card{position:sticky;top:24px;align-self:start} }
+.ygt .hero p{color:var(--ink)}
+.ygt .hero-photo{margin:26px 0 0}
+.ygt .hero-photo img{width:100%;height:auto;border-radius:var(--r);box-shadow:0 16px 40px rgba(22,24,26,.18)}
+.ygt .form-card .wpcf7{margin:0}
+/* stats band */
+.ygt .stats{background:var(--ink);padding:44px 0}
+.ygt .stats .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;text-align:center}
+.ygt .stats b{display:block;font-size:40px;font-weight:800;color:var(--y);line-height:1}
+.ygt .stats span{display:block;font-size:14.5px;color:#d6d6d6;margin-top:8px}
+/* overview split */
+.ygt .split{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+.ygt .split img{width:100%;height:auto;border-radius:var(--r);box-shadow:0 16px 40px rgba(22,24,26,.14)}
+/* grids + cards */
+.ygt .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}
+.ygt .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.ygt .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
+.ygt .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:26px 26px 22px;position:relative;overflow:hidden;
+  box-shadow:0 6px 22px rgba(22,24,26,.05);height:100%}
+.ygt .card::before{content:"";position:absolute;left:0;top:0;right:0;height:5px;background:var(--y)}
+.ygt .card p,.ygt .card li{font-size:16px;line-height:1.7;color:var(--ink-2)}
+.ygt .card p:last-child{margin-bottom:0}
+.ygt .card .ico{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:var(--y-soft);font-size:22px;margin-bottom:14px}
+.ygt .card.wide{grid-column:1/-1}
+.ygt ul.ticks{list-style:none;margin:6px 0 14px}
+.ygt ul.ticks li{position:relative;padding-left:28px;margin:0 0 9px}
+.ygt ul.ticks li::before{content:"✓";position:absolute;left:0;top:1px;width:19px;height:19px;border-radius:50%;background:var(--y);color:var(--ink);font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.ygt .chips{display:flex;flex-wrap:wrap;gap:10px;list-style:none;margin:10px 0 4px;justify-content:center}
+.ygt .chips.left{justify-content:flex-start}
+.ygt .chips li{background:#fff;border:1.5px solid var(--y);border-radius:999px;padding:8px 16px;font-size:14.5px;font-weight:500;color:var(--ink)}
+.ygt .note{display:flex;gap:14px;background:#fff;border:1px solid var(--line);border-left:5px solid var(--red);border-radius:12px;padding:18px 22px;max-width:860px;margin:28px auto 0}
+.ygt .note p{margin:0;font-size:16px}
+.ygt .note b{color:var(--ink)}
+/* tables */
+.ygt .tbl{overflow-x:auto;border-radius:var(--r);border:1px solid var(--line);background:#fff;box-shadow:0 6px 22px rgba(22,24,26,.05)}
+.ygt table{border-collapse:collapse;width:100%;margin:0;border:0;font-size:16px}
+.ygt th,.ygt td{text-align:left;padding:15px 20px;border:0;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-2);line-height:1.6}
+.ygt tr:last-child th,.ygt tr:last-child td{border-bottom:0}
+.ygt thead th{background:var(--y);color:var(--ink);font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.ygt tbody th{font-weight:600;color:var(--ink);width:30%}
+.ygt tbody tr:nth-child(even){background:#fffdf4}
+.ygt .tbl-title{font-size:21px;margin:42px 0 16px}
+.ygt .tbl-note{font-size:15px;color:var(--ink-3);margin:12px 0 0}
+/* steps */
+.ygt .steps{list-style:none;display:grid;gap:18px;max-width:960px;margin:0 auto;counter-reset:s}
+.ygt .steps > li{counter-increment:s;display:grid;grid-template-columns:58px 1fr;gap:20px;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:24px 26px;box-shadow:0 6px 22px rgba(22,24,26,.05)}
+.ygt .steps > li::before{content:counter(s);width:52px;height:52px;border-radius:50%;background:var(--y);color:var(--ink);font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.ygt .steps h3{margin:4px 0 8px}
+.ygt .steps p{font-size:16px;margin-bottom:8px}
+.ygt .steps .chips{justify-content:flex-start}
+/* pathway */
+.ygt .path{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;list-style:none;margin:18px 0}
+.ygt .path li{background:var(--ink);color:#fff;border-radius:10px;padding:11px 16px;font-size:14.5px;font-weight:600}
+.ygt .path li + li::before{content:"→";color:var(--y);margin-right:9px;font-weight:800}
+/* faq */
+.ygt .faq{max-width:900px;margin:0 auto;display:grid;gap:12px}
+.ygt details{background:#fff;border:1px solid var(--line);border-radius:14px;padding:0 22px}
+.ygt details[open]{border-color:var(--y);box-shadow:0 6px 22px rgba(22,24,26,.06)}
+.ygt summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:19px 0;font-weight:600;font-size:17px;color:var(--ink)}
+.ygt summary::-webkit-details-marker{display:none}
+.ygt summary::after{content:"+";flex:0 0 30px;height:30px;border-radius:50%;background:var(--y);color:var(--ink);font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.ygt details[open] summary::after{content:"–"}
+.ygt details p{margin:0 0 20px;font-size:16px}
+/* sources */
+.ygt .sources{list-style:none;display:grid;grid-template-columns:repeat(2,1fr);gap:10px 32px;max-width:900px;margin:22px auto 0}
+.ygt .sources li{font-size:15.5px;padding-left:22px;position:relative}
+.ygt .sources li::before{content:"↗";position:absolute;left:0;color:var(--red);font-weight:700}
+/* closing cta */
+.ygt .endcta{background:var(--y);text-align:center;padding:64px 0}
+.ygt .endcta p{max-width:680px;margin:0 auto 22px;color:var(--ink)}
+@media (max-width:1024px){
+  .ygt .grid-4{grid-template-columns:repeat(2,1fr)}
+  .ygt .grid-3{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:900px){
+  .ygt .hero-grid,.ygt .split{grid-template-columns:1fr;gap:32px}
+  .ygt .stats .grid{grid-template-columns:repeat(2,1fr)}
+  .ygt section{padding:54px 0}
+}
+@media (max-width:640px){
+  .ygt .wrap{padding:0 18px}
+  .ygt .grid-2,.ygt .grid-3,.ygt .grid-4,.ygt .sources{grid-template-columns:1fr}
+  .ygt .facts{grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .ygt .facts b{font-size:18px}.ygt .facts div{padding:12px}
+  .ygt .btn{width:100%}
+  .ygt p{font-size:16px}
+  .ygt .steps > li{grid-template-columns:1fr;gap:12px;padding:20px}
+  .ygt th,.ygt td{padding:12px 14px;font-size:15px}
+  .ygt .sec-head{text-align:left}
+  .ygt .hero .tag{font-size:12px;padding:6px 12px}
+  .ygt .chips{justify-content:flex-start}
+}
+
+/* extra blocks used by the TU Berlin and LMU pages */
+.ygt .grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:18px}
+.ygt .tile{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:24px 20px;text-align:center;box-shadow:0 6px 22px rgba(22,24,26,.05);border-top:5px solid var(--y)}
+.ygt .tile .ico{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:14px;background:var(--y-soft);font-size:26px;margin-bottom:12px}
+.ygt .tile h3{font-size:17px;margin:0}
+.ygt .card.center{text-align:center}
+.ygt .card .big{display:block;font-size:44px;font-weight:800;color:var(--red);line-height:1;margin:6px 0 10px}
+.ygt .card.wide2{grid-column:span 2}
+@media (max-width:1024px){ .ygt .grid-5{grid-template-columns:repeat(3,1fr)} }
+@media (max-width:640px){ .ygt .grid-5{grid-template-columns:1fr 1fr} .ygt .card.wide2{grid-column:auto} }
+</style>
+
+<div class="ygt">
+
+<!-- ================= HERO ================= -->
+<div class="hero">
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="https://www.yesgermany.com/">Home</a> › <span aria-current="page">Ludwig Maximilian University of Munich (LMU)</span></nav>
+    <div class="hero-grid">
+      <div>
+        <span class="tag">Study in Germany · University guide</span>
+        <h1>Ludwig Maximilian University of Munich (LMU): Courses, Fees &amp; Admissions for Indian Students</h1>
+        <p class="lede">Everything Indian students need to apply to LMU Munich: Bachelor's, Master's and State Examination programmes across 18 faculties, English-taught Master's, a low semester fee, APS guidance, scholarships, and the right application route for your programme.</p>
+        <p>Ludwig-Maximilians-Universität München (LMU) is a public research university and a strong, research-intensive comprehensive university with broad subject coverage. Founded in 1472 as the University of Ingolstadt, it moved to Munich in 1826. LMU Munich is one of Germany's largest universities and is the largest university in Bavaria, with 52,658 students in winter semester 2025/26, around 22% of them international.</p>
+        <p>Indian applicants must meet LMU's general and programme-specific admission requirements. Depending on the programme, applicants may need an APS certificate, language certification and additional selection or aptitude requirements. LMU does not have one universal application procedure for all programmes.</p>
+        <figure class="hero-photo"><img src="/wp-content/uploads/2024/02/Ludwig-Maximilian-University-of-Munich-for-Indian-students-1.webp" alt="Ludwig Maximilian University of Munich for Indian students" width="768" height="506" loading="eager"></figure>
+      </div>
+      <aside class="form-card" id="eligibility" aria-label="Check your eligibility">
+        [contact-form-7 id="139211" title="Enquiry Form"]
+      </aside>
+    </div>
+  </div>
+</div>
+
+<!-- ================= STATS ================= -->
+<div class="stats" aria-label="LMU in numbers">
+  <div class="wrap"><div class="grid">
+    <div><b>52,658</b><span>Students, winter semester 2025/26</span></div>
+    <div><b>~22%</b><span>International students</span></div>
+    <div><b>18</b><span>Academic faculties</span></div>
+    <div><b>51</b><span>Nobel laureates associated with LMU (52 Nobel Prizes)</span></div>
+  </div></div>
+</div>
+
+<!-- ================= FOUR REASONS ================= -->
+<section id="why-lmu">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Why LMU Munich</span><h2>Four Reasons Indian Students Choose LMU</h2>
+      <p>From more than 550 years of academic heritage to tuition-free regular degree programmes in the heart of Munich, here is what makes LMU a standout destination for Indian applicants.</p></div>
+    <div class="grid-4">
+      <div class="card"><span class="ico">🏅</span><h3>51 Nobel laureates</h3><p>51 Nobel laureates are associated with LMU, with 52 Nobel Prizes in total (one person received two). LMU's definition includes scholars who conducted research or studied at LMU: professors, researchers, doctoral graduates, alumni and others.</p></div>
+      <div class="card"><span class="ico">🇬🇧</span><h3>English-taught Master's</h3><p>LMU's list of English-taught master's programmes currently includes 38 programmes, from Astrophysics and Biochemistry to Economics, Political Science and Statistics and Data Science. English-taught Master's generally do not require German for admission.</p></div>
+      <div class="card"><span class="ico">💶</span><h3>No general tuition fees</h3><p>LMU generally does not charge tuition fees for its regular degree programmes. Students pay a semester contribution, currently €97 (summer semester 2026, the latest amount LMU lists). Check each programme page for programme-specific charges.</p></div>
+      <div class="card"><span class="ico">💼</span><h3>Up to 18 months after graduation</h3><p>After successfully completing their degree in Germany, eligible international graduates can obtain a residence permit for up to 18 months to look for qualified employment.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= AT A GLANCE ================= -->
+<section id="glance" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Overview</span><h2>LMU Munich at a Glance</h2>
+      <p>A snapshot of LMU's scale, heritage, and academic footprint for prospective international applicants. Figures carry their year, as LMU labels its facts and figures by academic year.</p></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Category</th><th>Details</th></tr></thead>
+      <tbody>
+        <tr><th>University</th><td>Ludwig Maximilian University of Munich</td></tr>
+        <tr><th>German name</th><td>Ludwig-Maximilians-Universität München</td></tr>
+        <tr><th>Common abbreviation</th><td>LMU · LMU Munich</td></tr>
+        <tr><th>Location</th><td>Munich, Bavaria, Germany</td></tr>
+        <tr><th>Founded</th><td>1472 (as the University of Ingolstadt; moved to Munich in 1826)</td></tr>
+        <tr><th>Type</th><td>Public research university</td></tr>
+        <tr><th>Size</th><td>One of Germany's largest universities and the largest university in Bavaria</td></tr>
+        <tr><th>Students</th><td>52,658 (winter semester 2025/26)</td></tr>
+        <tr><th>International students</th><td>Around 22%</td></tr>
+        <tr><th>Faculties</th><td>18</td></tr>
+        <tr><th>Degree programmes (winter semester 2025/26)</th><td>109 Bachelor's, 117 Master's, 6 State Examinations, 85 teacher-education degree subjects, 9 other degrees</td></tr>
+        <tr><th>English-taught Master's</th><td>38 on LMU's current list of English-taught master's programmes</td></tr>
+        <tr><th>Nobel laureates</th><td>51 associated with LMU, 52 Nobel Prizes in total</td></tr>
+        <tr><th>Main location</th><td>Main Building at Geschwister-Scholl-Platz 1, central Munich, plus four further campuses (Campus English Garden, Sendlinger Tor, Grosshadern/Martinsried and Oberschleissheim)</td></tr>
+        <tr><th>Tuition fees</th><td>Generally none for regular degree programmes</td></tr>
+        <tr><th>Semester contribution</th><td>€97 basic fee (summer semester 2026)</td></tr>
+        <tr><th>Study areas</th><td>Arts and humanities; law, economics and social sciences; mathematics, life and natural sciences; human and veterinary medicine</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ================= WHY + RANKINGS ================= -->
+<section id="why-indian-students">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Why LMU</span><h2>Why Indian Students Consider LMU</h2>
+      <p>LMU is particularly relevant for students seeking a comprehensive research university with centuries of heritage, strength across medicine, law, the natural sciences and the humanities, and study without general tuition fees in Munich.</p></div>
+    <div class="grid-3">
+      <div class="card"><span class="ico">🏛️</span><h3>More than 550 years of academic heritage</h3><p>Founded in 1472 in Ingolstadt and based in Munich since 1826, LMU's historic Main Building with its two distinctive fountains is a Munich icon.</p></div>
+      <div class="card"><span class="ico">📚</span><h3>Comprehensive research university across 18 faculties</h3><p>LMU's programmes span arts and humanities; law, economics and social sciences; mathematics, life and natural sciences; and human and veterinary medicine, across 125 buildings in and around Munich.</p></div>
+      <div class="card"><span class="ico">🌍</span><h3>International community and English-taught Master's</h3><p>Around 22% of LMU's students are international, and LMU offers a range of English-taught master's programmes as well as double-degree programmes with partner universities.</p></div>
+    </div>
+
+    <h3 class="tbl-title" style="text-align:center">LMU's Current Ranking Position</h3>
+    <p class="after" style="margin:0 auto 18px">According to LMU's official rankings page:</p>
+    <div class="tbl" style="max-width:860px;margin:0 auto"><table>
+      <thead><tr><th>Ranking</th><th>Global</th><th>Germany</th></tr></thead>
+      <tbody>
+        <tr><th>Times Higher Education World University Rankings 2027 (published 30 September 2026)</th><td>#41</td><td>#2</td></tr>
+        <tr><th>Academic Ranking of World Universities (ARWU) 2026</th><td>#49</td><td>#2</td></tr>
+        <tr><th>U.S. News Best Global Universities 2026</th><td>#57</td><td>#2</td></tr>
+        <tr><th>QS World University Rankings 2026</th><td>#61 (#17 in Europe)</td><td>#2</td></tr>
+        <tr><th>TIME World's Top Universities 2026</th><td>#66</td><td>#2</td></tr>
+      </tbody>
+    </table></div>
+    <p class="after">Rankings change every year and use different methodologies, so each figure should be read with its ranking year.</p>
+  </div>
+</section>
+
+<!-- ================= COURSES ================= -->
+<section id="courses" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Courses</span><h2>LMU Courses by Academic Area</h2>
+      <p>LMU offers a broad range of degree programmes across Bachelor's, Master's, State Examination and teacher-education routes. Its official 2025/26 statistics list <b>109 Bachelor's</b> and <b>117 Master's</b> entries. Programmes vary by subject, degree level, language, and study location.</p></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Subject group (winter semester 2025/26)</th><th>Bachelor's</th><th>Master's</th><th>State Examinations</th><th>Teacher education</th><th>Other</th></tr></thead>
+      <tbody>
+        <tr><th>Arts and humanities</th><td>55</td><td>56</td><td>–</td><td>43</td><td>6</td></tr>
+        <tr><th>Law, economics and social sciences</th><td>23</td><td>26</td><td>1</td><td>20</td><td>3</td></tr>
+        <tr><th>Mathematics, life and natural sciences</th><td>31</td><td>32</td><td>1</td><td>22</td><td>–</td></tr>
+        <tr><th>Human and veterinary medicine</th><td>–</td><td>3</td><td>4</td><td>–</td><td>–</td></tr>
+        <tr><th>Total</th><td><b>109</b></td><td><b>117</b></td><td><b>6</b></td><td><b>85</b></td><td><b>9</b></td></tr>
+      </tbody>
+    </table></div>
+    <p class="tbl-note">State Examinations in human and veterinary medicine cover medicine (pre-clinical and clinical), dentistry and veterinary medicine. "Other" covers church degrees, diplomas, Master of Arts and postgraduate studies; teacher education counts subjects taught in schools.</p>
+
+    <h3 class="tbl-title">Bachelor's Programmes &amp; State Examinations (representative)</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>Academic area</th><th>Representative programmes</th><th>Broad focus</th></tr></thead>
+      <tbody>
+        <tr><th>Medicine &amp; Health</th><td>Human Medicine, Dentistry and Pharmacy (State Examination); Pharmaceutical Sciences</td><td>Clinical medicine, dentistry and pharmaceutical sciences</td></tr>
+        <tr><th>Law</th><td>Law (State Examination)</td><td>Civil, criminal, public, European and comparative law</td></tr>
+        <tr><th>Business, Economics &amp; Management</th><td>Business Administration, Economics, Business Education, Business Mathematics</td><td>Business, economics, management, finance and quantitative methods</td></tr>
+        <tr><th>Natural Sciences &amp; Mathematics</th><td>Mathematics, Physics, Chemistry, Biochemistry, Biology, Earth Sciences</td><td>Fundamental and applied natural sciences, mathematics and research methods</td></tr>
+        <tr><th>Informatics &amp; Statistics</th><td>Informatics, Media Informatics, Statistics</td><td>Computer science, data, statistics and quantitative sciences</td></tr>
+        <tr><th>Humanities &amp; Cultural Studies</th><td>History, Philosophy, Religious Studies, Languages &amp; Literatures, Art History, Theatre Studies, Musicology</td><td>History, philosophy, languages, literature, arts and cultural studies</td></tr>
+        <tr><th>Social Sciences &amp; Education</th><td>Political Science, Sociology, Communication Science, Psychology, Educational Science; teaching degrees (Lehramt)</td><td>Politics, media, psychology, education and the social sciences</td></tr>
+        <tr><th>Veterinary Medicine &amp; Theology</th><td>Veterinary Medicine (State Examination), Catholic Theology, Protestant Theology</td><td>Veterinary science, theology and religious studies</td></tr>
+      </tbody>
+    </table></div>
+    <p class="tbl-note">Most LMU Bachelor's programmes are German-taught. Medicine, dentistry, pharmacy and veterinary medicine are admitted through a central procedure (see Deadlines).</p>
+
+    <h3 class="tbl-title">English-Taught Master's Programmes (LMU's current list)</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>Academic area</th><th>English-taught Master's at LMU</th></tr></thead>
+      <tbody>
+        <tr><th>Data, Statistics, Informatics &amp; Mathematics</th><td>Statistics and Data Science, Software Engineering, Financial and Insurance Mathematics, Logic and Philosophy of Science</td></tr>
+        <tr><th>Economics, Management &amp; Policy</th><td>Economics, Quantitative Economics, Management – International Triple Degree, Management and Digital Technologies, Insurance (Executive Master), Global Public Policy, Political Science</td></tr>
+        <tr><th>Physics &amp; Earth Sciences</th><td>Astrophysics, Physics, Theoretical and Mathematical Physics, Quantum Science &amp; Technology, Meteorology, Geophysics, Geology, Geomaterials and Geochemistry, Geobiology and Paleobiology</td></tr>
+        <tr><th>Life Sciences &amp; Health</th><td>Biochemistry, Molecular and Cellular Biology, Plant Science, Evolution, Ecology and Systematics, Human Biology — Principles of Health and Disease, Neuroscience, Epidemiology, International Health</td></tr>
+        <tr><th>Psychology</th><td>Neuro-Cognitive Psychology, Psychology: Learning Sciences</td></tr>
+        <tr><th>Law</th><td>European and International Economic Law (LL.M.)</td></tr>
+        <tr><th>Humanities, Media &amp; Society</th><td>American History, Culture and Society, Ancient Oriental Studies, Digital Cultural Heritage, English Studies, Environment and Society, Journalism, Media &amp; Globalisation, Theater, Dance and Performance Research</td></tr>
+      </tbody>
+    </table></div>
+    <p class="tbl-note">Other LMU Master's programmes are taught in German. LMU also offers double-degree programmes with partner universities (for example in Political Science, Management and Financial and Insurance Mathematics) and takes part in Erasmus Mundus master's programmes.</p>
+
+    <div class="grid-2" style="margin-top:36px">
+      <div class="card"><span class="ico">✅</span><h3>Before you shortlist a programme, check</h3>
+        <ul class="ticks"><li>Degree level and language of instruction</li><li>Admission procedure and where to apply</li><li>Application deadline</li><li>Study location</li><li>Programme-specific eligibility</li><li>Semester fee and any programme-specific charges</li><li>Documents required for international applicants</li></ul></div>
+      <div class="card"><span class="ico">🔎</span><h3>LMU's degree database is the final reference</h3>
+        <p>Programmes and requirements change, so always confirm the details on LMU's official degree pages before applying.</p>
+        <p style="margin-top:18px"><a class="btn" href="https://www.lmu.de/en/study/all-degrees-and-programs/" target="_blank" rel="noopener">Explore LMU's degree programmes ↗</a></p>
+        <p style="margin-top:12px"><a href="https://www.lmu.de/en/study/all-degrees-and-programs/international-degree-programs/" target="_blank" rel="noopener">LMU English-taught Master's programmes ↗</a></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ADMISSION REQUIREMENTS ================= -->
+<section id="admission-requirements">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Requirements</span><h2>LMU Admission Requirements for International Students</h2>
+      <p>There is no single set of requirements applicable to every LMU programme. Requirements differ between Bachelor's and Master's, and programme-specific requirements matter.</p></div>
+    <div class="grid-3">
+      <div class="card"><span class="ico">🎓</span><h3>Academic qualification</h3>
+        <ul class="ticks"><li><b>Bachelor's:</b> a university admission qualification. Depending on the applicant's qualification, this may be a school-leaving certificate plus a university entrance examination certificate, or evidence of a year of higher-education study or a university certificate.</li><li><b>Master's:</b> a recognised Bachelor's degree with relevant academic content</li><li>Programme-specific prerequisites and credits</li></ul></div>
+      <div class="card"><span class="ico">🗣️</span><h3>Language</h3>
+        <ul class="ticks"><li>Most Bachelor's programmes are German-taught and require German-language proof; the exact level and accepted certificate depend on the programme and admission route.</li><li>LMU's general information describes B2 as the minimum evidence at application in certain unrestricted-admission cases, followed by the required higher-level certificate for registration.</li><li>English-taught Master's, doctoral and double-degree programmes taught in English are the exception to the German requirement.</li><li>There is no university-wide IELTS/TOEFL score; English requirements are programme-specific.</li></ul></div>
+      <div class="card"><span class="ico">📝</span><h3>Aptitude, selection and tests</h3>
+        <ul class="ticks"><li>Some subjects have an aptitude assessment, pre-registration or study-orientation process, for which you must apply additionally, in time, via the respective institute.</li><li>Some programmes may require or recommend the GRE.</li><li>LMU has no university-wide GATE or GMAT requirement; some programmes use GMAT (e.g. Business Education Master's), while the regular M.Sc. Economics states GRE/GMAT are not required.</li></ul></div>
+    </div>
+    <div class="grid-2" style="margin-top:24px">
+      <div class="card"><span class="ico">🗂️</span><h3>Documents for International Office applications</h3>
+        <ul class="ticks"><li>Application form</li><li>University admission qualification, as an officially certified copy in the original language, with a certified translation (certificates in English and several other languages need no translation)</li><li>APS certificate for school-leaving certificates or degrees from India</li><li>Evidence of German proficiency (not for English-taught Master's, doctoral and double-degree programmes)</li><li>Updated CV</li><li>If you have studied before: all university certificates, diplomas and transcripts</li></ul>
+        <p>Expert reports, letters of recommendation and internship certificates are not required when applying to the International Office; individual programmes may ask for a motivation letter, CV, references or other documents.</p></div>
+      <div class="card"><span class="ico">🎯</span><h3>Numerus clausus (NC)</h3>
+        <p>Popular programmes at LMU can be subject to admission restrictions, and LMU distinguishes national and local NC procedures.</p>
+        <p>APS verifies Indian educational documents. It should not be understood as the general mechanism by which LMU performs the final NC ranking.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WHERE + HOW TO APPLY ================= -->
+<section id="how-to-apply" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Application</span><h2>How to Apply to LMU from India</h2>
+      <p>LMU explicitly says there is no single application procedure for all international students. Applicants without German nationality generally apply to the <b>International Office</b>; in certain cases they apply to the Office of the University Registrar (Studentenkanzlei) or the Foundation for University Admission (Stiftung für Hochschulzulassung), and a defined list of Master's programmes uses the online portal <b>MoveIN</b>.</p></div>
+    <ol class="steps">
+      <li><div><h3>Choose your programme</h3><p>Start on the official LMU programme page and confirm degree level, language of instruction, intake, admission procedure and requirements.</p></div></li>
+      <li><div><h3>Check programme-specific eligibility</h3><p>Compare your qualification with the programme's academic, language, and selection or aptitude requirements.</p></div></li>
+      <li><div><h3>Check whether APS is required</h3><p>LMU requires the APS certificate for applicants with school-leaving certificates or university degrees from India.</p></div></li>
+      <li><div><h3>Complete the programme's specified application procedure</h3><p>Prepare the documents your programme lists. Complete programme-specific preliminary documentation only if it is explicitly required. For aptitude-assessment subjects, also register with the institute in time.</p></div></li>
+      <li><div><h3>Submit to the responsible LMU office, faculty or admission platform</h3><p>The International Office, the Studentenkanzlei, the Foundation for University Admission, or MoveIN, depending on your programme.</p></div></li>
+      <li><div><h3>Complete any aptitude or selection procedure</h3><p>Some programmes add tests, interviews or other selection steps.</p></div></li>
+      <li><div><h3>Receive admission</h3><p>Follow the instructions in your admission notice.</p></div></li>
+      <li><div><h3>Complete registration / enrolment</h3><p>Register and pay the semester contribution within the deadline your admission notice gives.</p></div></li>
+    </ol>
+    <div class="note"><p><b>MoveIN Master's programmes:</b> Allgemeine und vergleichende Literaturwissenschaft, Art History, Biochemistry, Bioinformatics, Buchwissenschaft, Chemistry, Epidemiology (winter semester), Germanistische Literaturwissenschaft, History, Informatics, Mathematics, Media Informatics, Mensch-Computer-Interaktion, Quantitative Economics (winter semester), Slavistik, Sociology (winter semester) and Statistics &amp; Data Science.</p></div>
+    <div class="cta-row" style="justify-content:center;margin-top:26px"><a class="btn" href="https://www.lmu.de/en/study/degree-students/applications-for-admission/" target="_blank" rel="noopener">LMU international admissions ↗</a></div>
+  </div>
+</section>
+
+<!-- ================= DEADLINES ================= -->
+<section id="deadlines">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Deadlines</span><h2>LMU Application Deadlines</h2>
+      <p>LMU does not operate a single deadline for all programmes. Treat the individual programme page as the final source.</p></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Route</th><th>Semester</th><th>Deadline / application window</th></tr></thead>
+      <tbody>
+        <tr><th>Applications to the International Office</th><td>Winter semester</td><td>15 July (receipt by LMU)</td></tr>
+        <tr><th>Applications to the International Office</th><td>Summer semester</td><td>15 January (receipt by LMU)</td></tr>
+        <tr><th>MoveIN Master's programmes (list above)</th><td>Winter semester 2026/27</td><td>Portal open 15 May – 15 July 2026</td></tr>
+        <tr><th>Aptitude-assessment subjects</th><td>Programme-specific</td><td>Registration dates set by the respective institute, in addition to the application</td></tr>
+        <tr><th>Medicine, dentistry, pharmacy and other centrally admitted programmes</th><td>Programme-specific</td><td>Through the Foundation for University Admission; see <a href="https://hochschulstart.de/bewerben-beobachten/termine" target="_blank" rel="noopener">Hochschulstart deadlines</a></td></tr>
+      </tbody>
+    </table></div>
+    <p class="after">Whether a programme admits students in the summer semester, the winter semester or both is decided by the programme. Always confirm the dates on the programme page before planning your APS timeline.</p>
+  </div>
+</section>
+
+<!-- ================= FEES ================= -->
+<section id="tuition-fees" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Fees</span><h2>LMU Tuition &amp; Semester Fees for International Students</h2>
+      <p>LMU currently does not generally charge tuition fees for its regular degree programmes, but students must pay the semester contribution. LMU programme pages explicitly state no tuition fees while listing the semester contribution; check your programme page for any programme-specific charges.</p></div>
+    <div class="grid-2">
+      <div class="card center"><span class="ico">🎓</span><h3>Tuition for regular degree programmes</h3><b class="big">€0</b><p>LMU generally does not charge tuition fees for its regular degree programmes.</p></div>
+      <div class="card center"><span class="ico">🧾</span><h3>Semester contribution, summer semester 2026</h3><b class="big">€97</b><p>The basic fee for the Munich Student Union, paid at registration and every continuation of registration, including a leave-of-absence semester. This is the latest amount LMU lists; check the current semester's fee before you enrol.</p></div>
+    </div>
+    <div class="note"><p><b>No transport ticket included:</b> the additional semester-ticket fee has been discontinued until further notice (since winter semester 2023/24), so only the basic fee is charged. Your LMU student card is not a valid MVV ticket; budget for Munich public transport separately.</p></div>
+    <h3 class="tbl-title" style="text-align:center">How the semester contribution has changed</h3>
+    <div class="tbl" style="max-width:760px;margin:0 auto"><table>
+      <thead><tr><th>Semester</th><th>Amount</th></tr></thead>
+      <tbody>
+        <tr><th>Summer semester 2026 onwards</th><td>€97 basic fee</td></tr>
+        <tr><th>Winter semester 2023/24 – winter semester 2024/25</th><td>€85 basic fee</td></tr>
+        <tr><th>Summer semester 2023</th><td>€75 basic fee + €77.30 semester ticket = €152.30</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ================= SCHOLARSHIPS ================= -->
+<section id="scholarships">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Funding</span><h2>Scholarships and Financial Support at LMU</h2>
+      <p>Scholarship eligibility should always be assessed separately from university admission eligibility.</p></div>
+    <div class="grid-3">
+      <div class="card"><span class="ico">🏅</span><h3>Deutschlandstipendium at LMU</h3><b class="big" style="font-size:32px">€300 / month</b>
+        <p>For one year, subject to LMU's selection and scholarship rules. Candidates need excellent academic performance and above-average commitment; open to students of all nationalities.</p></div>
+      <div class="card"><span class="ico">🎓</span><h3>SIST LMU Study Scholarship</h3>
+        <p>Funded by the Free State of Bavaria for international students and doctoral students registered in regular full-time programmes at LMU. Requirements include academic excellence, demonstrable knowledge in the field and financial need. Apply to the International Office (2026 window: 15 January – 8 March).</p></div>
+      <div class="card"><span class="ico">📘</span><h3>SIST LMU Study Completion Scholarship</h3>
+        <p>A semester-long, DAAD-funded scholarship for registered international students with a history of academic excellence who will earn their first degree at LMU within one year and can show financial need.</p></div>
+      <div class="card"><span class="ico">🤝</span><h3>SIST LMU Equality Scholarship</h3>
+        <p>A semester-long, DAAD-funded scholarship for registered international students with a history of academic excellence and evidence of financial need who can provide proof of impairment, for example disability, chronic illness and/or a refugee background.</p></div>
+      <div class="card"><span class="ico">🆘</span><h3>LMU emergency assistance</h3>
+        <p>International students and doctoral candidates in short-term, unexpected financial need can apply for one-time assistance (LMU Nothilfe).</p></div>
+      <div class="card"><span class="ico">🔍</span><h3>DAAD and other funding</h3>
+        <p>Indian students can also explore DAAD scholarship opportunities through the DAAD scholarship database; eligibility, deadlines and eligible programmes vary by scholarship. Erasmus+ supports exchange and double-degree students, and foundations offer further support.</p>
+        <p><a href="https://www.lmu.de/en/workspace-for-students/student-support-services/finance-your-studies/scholarships/scholarships-for-international-students/" target="_blank" rel="noopener">LMU scholarships for international students ↗</a></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= LIVING + HOUSING ================= -->
+<section id="cost-of-living" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Living costs</span><h2>Cost of Living and Housing in Munich</h2>
+      <p>Munich is an expensive student city. Actual monthly costs depend heavily on rent, health insurance, food, transport and lifestyle. Students should prepare a realistic budget using current LMU and Munich Student Union guidance.</p></div>
+    <div class="grid-2">
+      <div class="card"><span class="ico">🧾</span><h3>Typical monthly expenses include</h3>
+        <ul class="ticks"><li>Accommodation</li><li>Food</li><li>Health insurance</li><li>Transportation (the semester fee no longer includes a transport ticket)</li><li>Phone and internet</li><li>Study materials</li><li>Personal expenses</li></ul></div>
+      <div class="card"><span class="ico">🏠</span><h3>Rent in Munich (LMU housing information)</h3>
+        <div class="tbl" style="box-shadow:none;margin:6px 0 12px"><table>
+          <tbody>
+            <tr><th>Rooms in student housing</th><td>€400–€600 / month</td></tr>
+            <tr><th>Rooms in shared apartments and single apartments</th><td>€600–€1,100 / month</td></tr>
+            <tr><th>Rooms on the private market (average)</th><td>About €750 / month</td></tr>
+          </tbody>
+        </table></div>
+        <p>Advertised prices are usually basic rent (Kaltmiete) without utilities; expect a deposit (Kaution) of one to three months' basic rent.</p></div>
+    </div>
+    <div class="grid-2" style="margin-top:24px">
+      <div class="card"><span class="ico">🏢</span><h3>University housing</h3>
+        <p>LMU students can apply for university housing, much of which is managed by the Munich Student Union (Studierendenwerk München Oberbayern). Places are limited: only about 13% of Munich's roughly 100,000 students live in university housing, mostly in furnished single rooms with a shared kitchen.</p></div>
+      <div class="card"><span class="ico">📅</span><h3>Start early, stay safe</h3>
+        <ul class="ticks"><li>Finding housing is hardest in September, October and November, at the start of the winter semester.</li><li>Options: student residences, shared apartments (WG), private rooms and apartments, and temporary accommodation on arrival.</li><li>Beware of fraud: never transfer deposits or rent before you are sure the room exists, and never email copies of your ID.</li><li>Admission to LMU does not automatically provide accommodation.</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CAMPUSES ================= -->
+<section id="campuses">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Locations</span><h2>LMU Campuses and Study Locations</h2>
+      <p>LMU has 125 buildings in and around Munich, and its campus development programme is bringing previously scattered faculties together on five large campus sites. The exact location depends on your programme, so check the location listed on your programme page.</p></div>
+    <div class="grid-3">
+      <div class="card"><span class="ico">🏛️</span><h3>Campus Geschwister-Scholl-Platz</h3><p>The heart of LMU in central Munich and home of the historic Main Building, with facilities for the humanities, culture, law, economics, business, the social sciences and, for the time being, physics.</p></div>
+      <div class="card"><span class="ico">🌳</span><h3>Campus English Garden</h3><p>Where the currently dispersed Faculty of Physics will be brought together in a state-of-the-art campus over the coming years.</p></div>
+      <div class="card"><span class="ico">🏥</span><h3>Campus Sendlinger Tor</h3><p>Home to several clinics and facilities of the Faculty of Medicine; LMU plans a new Building of Geosciences and to bring the Faculty of Mathematics, Informatics and Statistics together here.</p></div>
+      <div class="card"><span class="ico">🧬</span><h3>Campus Grosshadern / Martinsried</h3><p>A natural and life sciences cluster in the southwest of Munich, closely networked with leading non-university research institutions and LMU University Hospital, the second-largest university hospital in Germany.</p></div>
+      <div class="card"><span class="ico">🐾</span><h3>Campus Oberschleissheim</h3><p>About 15 km from the city centre, where almost the entire Faculty of Veterinary Medicine is being settled, creating one of Europe's largest research and training centres for veterinary medicine.</p></div>
+      <div class="card"><span class="ico">🔭</span><h3>Beyond Munich</h3><p>LMU's facilities also include libraries, hospital complexes, agricultural facilities and the Wendelstein Observatory in the Bavarian Alps.</p>
+        <p><a href="https://www.standorte.lmu.de/en/" target="_blank" rel="noopener">LMU locations ↗</a></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= INDIAN STUDENTS ================= -->
+<section id="indian-students" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">For Indian students</span><h2>What Makes the LMU Application Different for Indian Students</h2>
+      <p>Indian applicants must meet LMU's general and programme-specific admission requirements. Depending on the programme, applicants may need an APS certificate, language certification and additional selection or aptitude requirements. LMU does not have one universal application procedure for all programmes.</p></div>
+    <div class="grid-3">
+      <div class="card"><span class="ico">🛂</span><h3>APS Certificate</h3><p>LMU requires the certificate from the Akademische Prüfstelle (APS) at the German Embassy for applicants with school-leaving certificates and/or university degrees from India. APS verifies Indian academic documents and educational qualifications.</p><p><a href="https://aps-india.de/" target="_blank" rel="noopener">APS India ↗</a></p></div>
+      <div class="card"><span class="ico">📄</span><h3>Preliminary documentation</h3><p>LMU does not have a general VPD (uni-assist) requirement for Indian applicants. Complete programme-specific preliminary documentation only if your programme explicitly requires it, and submit your application through the route your programme specifies.</p></div>
+      <div class="card"><span class="ico">🎒</span><h3>Documents for Bachelor's applicants</h3><p>LMU asks for the university entrance qualification, which may consist of a school-leaving certificate plus a university entrance examination certificate or evidence of higher-education study, depending on the applicant's qualification, together with the APS certificate. These are not one universal checklist; follow your programme's requirements.</p></div>
+      <div class="card"><span class="ico">📚</span><h3>Documents for Master's applicants</h3><p>Applicants with Indian university degrees should submit the APS certificate along with university certificates and transcripts. Programme-specific requirements can add a motivation letter, CV, aptitude test, recommendation, specific credits, language proof or a selection interview.</p></div>
+      <div class="card"><span class="ico">🗣️</span><h3>Language certification</h3><p>For English-taught Master's, check your programme's English requirement; LMU has no single IELTS/TOEFL score for all programmes. German-taught programmes, including most Bachelor's, require German-language proof at the level and with the certificate your programme accepts.</p></div>
+      <div class="card"><span class="ico">🧪</span><h3>GRE, GMAT and NC</h3><p>Some Master's programmes may require or recommend the GRE, and some use GMAT; there is no university-wide GATE or GMAT requirement. Popular programmes can be admission-restricted (national or local NC); APS verifies documents and is not the NC ranking mechanism.</p></div>
+    </div>
+    <div class="sec-head" style="margin:46px auto 0"><h3 style="font-size:22px">Indian pathway at a glance</h3>
+      <ul class="path"><li>Choose programme</li><li>Check programme-specific eligibility</li><li>Check whether APS is required</li><li>Complete the programme's application procedure</li><li>Submit to the responsible LMU office / faculty / platform</li><li>Aptitude or selection procedure</li><li>Admission</li><li>Registration / enrolment</li></ul>
+      <p>Not every applicant follows exactly the same pathway: the programme's individual requirements determine which stages apply.</p></div>
+    <div class="card" style="margin-top:30px;text-align:center"><h3>From Delhi, Mumbai or Bangalore — straight to Munich</h3>
+      <p>Our India-based advisors guide students through programme shortlisting, APS, documents, tests, visa documentation and arrival in Germany. The LMU application has moving parts; we keep every stage on track so you don't miss a deadline.</p>
+      <div class="cta-row" style="justify-content:center"><a class="btn" href="https://www.yesgermany.com/book-an-appointment/">Book free counselling</a></div></div>
+  </div>
+</section>
+
+<!-- ================= WORK + CAREER ================= -->
+<section id="work-and-career">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Work &amp; career</span><h2>Working During and After Your Studies</h2></div>
+    <div class="grid-2">
+      <div class="card"><span class="ico">💼</span><h3>Work while studying</h3><p>International students can work subject to residence rules. Current German government guidance says international students can generally work <b>140 full days or 280 half days per year</b>, or alternatively <b>up to 20 hours per week</b> under the applicable rules.</p></div>
+      <div class="card"><span class="ico">🎓</span><h3>After graduation</h3><p>After successfully completing their degree in Germany, eligible international graduates can obtain a <b>residence permit for up to 18 months</b> to look for qualified employment.</p><p><a href="https://www.make-it-in-germany.com/en/visa-residence/types/studying" target="_blank" rel="noopener">Make it in Germany study guidance ↗</a></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CHECKLIST ================= -->
+<section id="checklist" class="alt">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Checklist</span><h2>LMU Application Checklist for Indian Students</h2>
+      <p>Confirm the following before you submit: academic eligibility, documents, tests, and the application timeline.</p></div>
+    <div class="grid-4">
+      <div class="card"><span class="ico">🎓</span><h3>Academic</h3><ul class="ticks"><li>Previous qualification is recognised</li><li>Bachelor's matches the Master's subject requirements</li><li>Required subject-specific credits are met</li><li>Programme's grade / academic requirements are met</li></ul></div>
+      <div class="card"><span class="ico">🗂️</span><h3>Documents</h3><ul class="ticks"><li>Passport</li><li>Certified copies of academic certificates and transcripts, with certified translations where needed</li><li>APS certificate</li><li>Curriculum or module descriptions (where required)</li><li>Language certificate</li><li>CV, and motivation letter where required</li></ul></div>
+      <div class="card"><span class="ico">🧪</span><h3>Tests</h3><ul class="ticks"><li>English proof as specified by your English-taught programme</li><li>German proof for German-taught programmes</li><li>GRE / GMAT only where your programme requires it</li><li>Programme-specific interviews or aptitude procedures</li></ul></div>
+      <div class="card"><span class="ico">📮</span><h3>Application</h3><ul class="ticks"><li>Exact programme deadline confirmed</li><li>Programme-specific preliminary documentation completed, if explicitly required</li><li>Application submitted through the programme's specified LMU / faculty / admission route</li><li>Institute registration done for aptitude-assessment subjects</li><li>Application status monitored</li><li>Registration / enrolment completed after admission</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">FAQs</span><h2>Frequently Asked Questions</h2><p>Quick answers to the questions Indian students ask most often about LMU.</p></div>
+    <div class="faq">
+      <details open><summary>Is Ludwig Maximilian University of Munich (LMU) a public university?</summary><p>Yes. LMU is a public research university in Germany, founded in 1472, with its Main Building in central Munich at Geschwister-Scholl-Platz 1.</p></details>
+      <details><summary>Does LMU Munich charge tuition fees?</summary><p>LMU generally does not charge tuition fees for its regular degree programmes. Students pay a semester contribution (€97 in summer semester 2026), which does not include a public transport ticket. Check your programme page for any programme-specific charges.</p></details>
+      <details><summary>Does LMU offer English-taught programmes?</summary><p>Yes. LMU's current list of English-taught master's programmes includes 38 programmes, such as Statistics and Data Science, Economics, Biochemistry, Astrophysics and Political Science. Most Bachelor's programmes are taught in German.</p></details>
+      <details><summary>Is accommodation provided by LMU?</summary><p>LMU students can apply for university housing, much of which is managed by the Munich Student Union. Places are limited, so students should begin looking for accommodation early; most students in Munich live in private rooms, shared apartments or single apartments.</p></details>
+      <details><summary>Can I apply to more than one LMU programme?</summary><p>Whether you can apply to multiple LMU programmes and how you do so depends on the relevant admission procedure. Check each programme's application rules.</p></details>
+      <details><summary>Does LMU offer summer-semester admission?</summary><p>The LMU International Office recognises both summer and winter application periods (deadlines 15 January and 15 July), while individual programmes determine whether they admit for each semester.</p></details>
+      <details><summary>Do I need German if my LMU programme is taught in English?</summary><p>English-taught Master's programmes generally do not require German for admission, but check your programme's own requirements; some have German-language electives. Most LMU Bachelor's programmes and State Examinations are taught in German and require German-language proof.</p></details>
+      <details><summary>Do Indian students need a VPD from uni-assist for LMU?</summary><p>LMU does not have a general VPD requirement. Indian applicants need the APS certificate; complete programme-specific preliminary documentation only if your programme explicitly requires it.</p></details>
+      <details><summary>Can Indian students work while studying at LMU?</summary><p>Yes, subject to residence rules: generally 140 full days or 280 half days per year, or alternatively up to 20 hours per week under the applicable rules.</p></details>
+      <details><summary>Where is LMU located?</summary><p>LMU's Main Building is at Geschwister-Scholl-Platz 1 in central Munich. Its five campuses are Geschwister-Scholl-Platz, English Garden, Sendlinger Tor, Grosshadern/Martinsried and Oberschleissheim.</p></details>
+      <details><summary>Do all LMU Master's programmes have the same requirements?</summary><p>No. Master's programmes have different academic, language, aptitude assessment and additional requirements, and some are admission-restricted. Always check the programme page.</p></details>
+      <details><summary>Does LMU offer scholarships to international students?</summary><p>Yes. Options include the Deutschlandstipendium (€300 per month for one year), the SIST LMU scholarships for international students, DAAD scholarships and Erasmus+ funding, plus external foundations.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CLOSING CTA ================= -->
+<div class="endcta">
+  <div class="wrap">
+    <h2>Plan your LMU application with YES Germany</h2>
+    <p>We guide Indian students through every stage of the Ludwig Maximilian University of Munich application: programme shortlisting, APS, documents, tests, scholarships and enrolment.</p>
+    <div class="cta-row" style="justify-content:center"><a class="btn dark" href="#eligibility">Check your eligibility</a><a class="btn line" href="https://www.yesgermany.com/book-an-appointment/">Book free counselling</a></div>
+  </div>
+</div>
+
+</div>
+
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is Ludwig Maximilian University of Munich (LMU) a public university?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. LMU is a public research university in Germany, founded in 1472, with its Main Building in central Munich at Geschwister-Scholl-Platz 1."}}, {"@type": "Question", "name": "Does LMU Munich charge tuition fees?", "acceptedAnswer": {"@type": "Answer", "text": "LMU generally does not charge tuition fees for its regular degree programmes. Students pay a semester contribution (€97 in summer semester 2026), which does not include a public transport ticket. Check your programme page for any programme-specific charges."}}, {"@type": "Question", "name": "Does LMU offer English-taught programmes?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. LMU's current list of English-taught master's programmes includes 38 programmes, such as Statistics and Data Science, Economics, Biochemistry, Astrophysics and Political Science. Most Bachelor's programmes are taught in German."}}, {"@type": "Question", "name": "Is accommodation provided by LMU?", "acceptedAnswer": {"@type": "Answer", "text": "LMU students can apply for university housing, much of which is managed by the Munich Student Union. Places are limited, so students should begin looking for accommodation early; most students in Munich live in private rooms, shared apartments or single apartments."}}, {"@type": "Question", "name": "Can I apply to more than one LMU programme?", "acceptedAnswer": {"@type": "Answer", "text": "Whether you can apply to multiple LMU programmes and how you do so depends on the relevant admission procedure. Check each programme's application rules."}}, {"@type": "Question", "name": "Does LMU offer summer-semester admission?", "acceptedAnswer": {"@type": "Answer", "text": "The LMU International Office recognises both summer and winter application periods (deadlines 15 January and 15 July), while individual programmes determine whether they admit for each semester."}}, {"@type": "Question", "name": "Do I need German if my LMU programme is taught in English?", "acceptedAnswer": {"@type": "Answer", "text": "English-taught Master's programmes generally do not require German for admission, but check your programme's own requirements; some have German-language electives. Most LMU Bachelor's programmes and State Examinations are taught in German and require German-language proof."}}, {"@type": "Question", "name": "Do Indian students need a VPD from uni-assist for LMU?", "acceptedAnswer": {"@type": "Answer", "text": "LMU does not have a general VPD requirement. Indian applicants need the APS certificate; complete programme-specific preliminary documentation only if your programme explicitly requires it."}}, {"@type": "Question", "name": "Can Indian students work while studying at LMU?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, subject to residence rules: generally 140 full days or 280 half days per year, or alternatively up to 20 hours per week under the applicable rules."}}, {"@type": "Question", "name": "Where is LMU located?", "acceptedAnswer": {"@type": "Answer", "text": "LMU's Main Building is at Geschwister-Scholl-Platz 1 in central Munich. Its five campuses are Geschwister-Scholl-Platz, English Garden, Sendlinger Tor, Grosshadern/Martinsried and Oberschleissheim."}}, {"@type": "Question", "name": "Do all LMU Master's programmes have the same requirements?", "acceptedAnswer": {"@type": "Answer", "text": "No. Master's programmes have different academic, language, aptitude assessment and additional requirements, and some are admission-restricted. Always check the programme page."}}, {"@type": "Question", "name": "Does LMU offer scholarships to international students?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Options include the Deutschlandstipendium (€300 per month for one year), the SIST LMU scholarships for international students, DAAD scholarships and Erasmus+ funding, plus external foundations."}}]}
+</script>
