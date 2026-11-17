@@ -25,10 +25,14 @@
  *   german-classes-in-chennai, own "Book Free Demo Class" form.
  *   german-language,
  *   german-language-course-in-delhi
- *   technical-university-of-munich-in-germany   requested 7 Oct 2026; the page
- *                             has the Enquiry Form in its hero.
- *   technical-university-of-berlin-in-germany,          same layout, added
- *   ludwig-maximilian-university-of-munich-in-germany   7 Oct 2026.
+ *
+ * 17 Nov 2026: on request, the popup opens by itself again everywhere except
+ * the German-language pages. Taken off the list: the three university pages
+ * (technical-university-of-munich-in-germany, technical-university-of-berlin-
+ * in-germany, ludwig-maximilian-university-of-munich-in-germany, added 7 Oct)
+ * and the plugin's own hard-coded defaults (social-community,
+ * influencer-marketing, dmat, daad-scholarships, ects, uni-assist), which are
+ * removed below so the plugin file itself stays untouched.
  *
  * Also, without listing them: every German-language page built from the
  * hand-made demo-class designs - the pages mu-plugin 56 gives a 16px base. Each
@@ -46,15 +50,16 @@ defined( 'ABSPATH' ) || exit;
 add_filter(
 	'yg_form_popup_no_autoopen_pages',
 	function ( $pages ) {
-		$pages   = (array) $pages;
+		// 17 Nov 2026: the plugin's own defaults are switched back on (see above).
+		$pages   = array_diff(
+			(array) $pages,
+			array( 'social-community', 'influencer-marketing', 'dmat', 'daad-scholarships', 'ects', 'uni-assist' )
+		);
 		$pages[] = 'german-language-enquiry';
 		$pages[] = 'german-language-course';
 		$pages[] = 'german-classes-in-chennai';
 		$pages[] = 'german-language';
 		$pages[] = 'german-language-course-in-delhi';
-		$pages[] = 'technical-university-of-munich-in-germany';
-		$pages[] = 'technical-university-of-berlin-in-germany';
-		$pages[] = 'ludwig-maximilian-university-of-munich-in-germany';
 
 		// German pages in the demo-class designs (see mu-plugin 56).
 		if ( function_exists( 'yg_rem_base_applies' ) && yg_rem_base_applies() ) {
