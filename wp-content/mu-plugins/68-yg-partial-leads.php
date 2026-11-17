@@ -2,7 +2,7 @@
 /**
  * Plugin Name: YG Partial Leads
  * Description: Saves what a visitor types into the enquiry forms before they press Submit. A draft that is never submitted becomes a partial lead and is sent to the CRM (saveDetails, 8443) after a quiet period. Submitted drafts are only marked; the normal lead goes through exactly as before.
- * Version:     1.1.1
+ * Version:     1.2.0
  * Author:      Stealth Digital
  *
  * Asked for on 2026-11-05: "capture lead even when people dont submit ... when
@@ -201,20 +201,30 @@ function yg_partial_digits( $phone ) {
  * Fields a draft must have before it is saved or sent: everything the form
  * requires except branch.
  *
+ * Study Level and Intake are only required on the German-language course
+ * pages since 17 Nov 2026 (mu-plugin 46, 1.2.0); everywhere else the form
+ * lets them be empty, so a draft does too. The page is the draft's page_url.
+ *
+ * @param string $page_url Page the form was filled on.
  * @return string[]
  */
-function yg_partial_required_keys() {
-	return (array) apply_filters( 'yg_partial_required_keys', array( 'full_name', 'email', 'phone', 'level_of_education', 'preferred_intake_of_pursuing', 'state' ) );
+function yg_partial_required_keys( $page_url = '' ) {
+	$keys = array( 'full_name', 'email', 'phone', 'state' );
+	if ( $page_url && function_exists( 'yg_cf7_is_german_language_page' ) && yg_cf7_is_german_language_page( url_to_postid( $page_url ) ) ) {
+		$keys = array( 'full_name', 'email', 'phone', 'level_of_education', 'preferred_intake_of_pursuing', 'state' );
+	}
+	return (array) apply_filters( 'yg_partial_required_keys', $keys, $page_url );
 }
 
 /**
  * Whether a set of form fields is complete enough to be a lead.
  *
- * @param array $fields Form fields.
+ * @param array  $fields   Form fields.
+ * @param string $page_url Page the form was filled on.
  * @return bool
  */
-function yg_partial_complete( array $fields ) {
-	foreach ( yg_partial_required_keys() as $k ) {
+function yg_partial_complete( array $fields, $page_url = '' ) {
+	foreach ( yg_partial_required_keys( $page_url ) as $k ) {
 		$v = isset( $fields[ $k ] ) ? $fields[ $k ] : '';
 		$v = is_array( $v ) ? (string) reset( $v ) : (string) $v;
 		if ( '' === trim( $v ) ) {
@@ -251,7 +261,7 @@ function yg_partial_rest_save( WP_REST_Request $req ) {
 
 	$fields = yg_partial_clean_fields( $req->get_param( 'fields' ) );
 	$phone  = isset( $fields['phone'] ) && is_scalar( $fields['phone'] ) ? (string) $fields['phone'] : '';
-	if ( ! yg_partial_complete( $fields ) ) {
+	if ( ! yg_partial_complete( $fields, (string) $req->get_param( 'page_url' ) ) ) {
 		return new WP_REST_Response( array( 'ok' => false, 'why' => 'incomplete' ), 200 );
 	}
 
@@ -418,7 +428,7 @@ function yg_partial_push_run( $dry_run = false, $out = null ) {
 		$row    = json_decode( (string) $p['row_json'], true );
 		$row    = is_array( $row ) ? $row : array();
 		$fields = json_decode( (string) ( $row['fields_json'] ?? '' ), true );
-		if ( ! is_array( $fields ) || ! yg_partial_complete( $fields ) ) {
+		if ( ! is_array( $fields ) || ! yg_partial_complete( $fields, (string) ( $row['page_url'] ?? '' ) ) ) {
 			$out( sprintf( 'SKIP partial %d: incomplete', $p['id'] ) );
 			if ( ! $dry_run ) {
 				$wpdb->update( $t, array( 'status' => 'incomplete' ), array( 'id' => (int) $p['id'] ) );
@@ -530,18 +540,28 @@ function yg_partial_script() {
 			} );
 			return out;
 		}
-		/* Everything the form needs except branch: name, valid email, 10+ digit phone, level, intake, state. */
-		var NEED = ['full_name','email','phone','level_of_education','preferred_intake_of_pursuing','state'];
-		function complete( f ) {
-			for ( var i = 0; i < NEED.length; i++ ) {
-				var v = f[ NEED[ i ] ]; v = Array.isArray( v ) ? v[0] : v;
+		/* Everything the form needs except branch: name, valid email, 10+ digit phone, state,
+		   plus level and intake where this form requires them (German-language pages). */
+		var NEED = ['full_name','email','phone','state'];
+		function need( form ) {
+			var n = NEED.slice();
+			['level_of_education','preferred_intake_of_pursuing'].forEach( function ( k ) {
+				var el = form.querySelector( '[name="' + k + '"]' );
+				if ( el && 'true' === el.getAttribute( 'aria-required' ) ) { n.push( k ); }
+			} );
+			return n;
+		}
+		function complete( f, form ) {
+			var keys = need( form );
+			for ( var i = 0; i < keys.length; i++ ) {
+				var v = f[ keys[ i ] ]; v = Array.isArray( v ) ? v[0] : v;
 				if ( ! v || ! String( v ).trim() ) { return false; }
 			}
 			return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test( String( f.email ).trim() ) && String( f.phone ).replace( /\D/g, '' ).length >= 10;
 		}
 		function save( form, retry ) {
 			var f = fields( form );
-			if ( ! complete( f ) ) { return; }
+			if ( ! complete( f, form ) ) { return; }
 			var body = JSON.stringify( { token: token( form ), form_id: formId( form ), page_url: location.href, fields: f } );
 			if ( body === form.__ygLast ) { return; }
 			form.__ygLast = body;

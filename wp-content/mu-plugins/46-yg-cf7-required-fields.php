@@ -7,7 +7,7 @@
  *              after a server round trip. Mirroring the attribute means an
  *              incomplete form cannot be sent at all - no request to WordPress,
  *              and nothing for the CRM to receive.
- * Version:     1.1.0
+ * Version:     1.3.0
  * Author:      Stealth Digital
  *
  * Elementor Pro needs none of this: it already renders required="required" on
@@ -40,6 +40,21 @@
  * 1.1.0 (2026-11-05): branch is optional again, at the user's request, except
  * on mh submissions and on the German-language course pages - see
  * yg_cf7_branch_required_here(). The placeholder is still never sent as a value.
+ *
+ * 1.2.0 (2026-11-17): on the same pages where branch is optional (everything
+ * except mh and the German-language course pages), the Enquiry Form also:
+ *   - makes Study Level and Intake optional (yg_cf7_main_optional_fields());
+ *   - shows State and Branch straight after the phone number, so the order is
+ *     name, email, phone, state, branch, study level, intake
+ *     (yg_cf7_reorder_enquiry_form()).
+ * Asked for by the user. mh and the German pages keep the old order and rules.
+ *
+ * 1.3.0 (2026-11-17): mh.yesgermany.com is treated like the homepage (client
+ * approval): same order, branch / study level / intake optional. mh already
+ * drew the homepage form (it is fetched from this site), but its submissions
+ * were still validated with the old rules. Only the German-language course
+ * pages keep the old order and required fields. Mail routing (53 / 58) is
+ * unchanged.
  *
  * Note `branchIsRequired()` in yg-form-popup-v2 is hardcoded to return false,
  * so that plugin's own branch gating never fires. This replaces it properly.
@@ -112,9 +127,10 @@ function yg_cf7_is_german_language_page( $post_id ) {
 /**
  * Whether the branch field must be filled for this render or submission.
  *
- * Since 5 Nov 2026 branch is optional everywhere except:
- *   - submissions from mh.yesgermany.com (its own form requires it);
- *   - the German-language course pages, in-page form and popup alike.
+ * Since 5 Nov 2026 branch is optional everywhere except the German-language
+ * course pages, in-page form and popup alike. mh.yesgermany.com submissions
+ * follow the homepage rules since 17 Nov 2026 (1.3.0); its form is the
+ * homepage form, fetched through mu-plugin 40.
  *
  * The page is found the same way when the form is drawn and when it is sent,
  * so the browser and the server never disagree:
@@ -125,10 +141,6 @@ function yg_cf7_is_german_language_page( $post_id ) {
  * @return bool
  */
 function yg_cf7_branch_required_here() {
-	if ( function_exists( 'yg_mh_mail_is_mh_submission' ) && yg_mh_mail_is_mh_submission() ) {
-		return true;
-	}
-
 	$post_id = 0;
 	if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- read-only routing hint; CF7 verifies the submission.
@@ -214,6 +226,98 @@ function yg_cf7_force_required_tag( $tag ) {
 	}
 
 	return $tag;
+}
+
+/**
+ * Fields that are optional on the main site (and mh) but required on the
+ * German-language course pages. Keyed by CF7 form ID.
+ *
+ * Only the Enquiry Form: the influencer form (139425) keeps its rules.
+ *
+ * @return array
+ */
+function yg_cf7_main_optional_fields() {
+	return apply_filters(
+		'yg_cf7_main_optional_fields',
+		array(
+			139211 => array( 'level_of_education', 'preferred_intake_of_pursuing' ),
+		)
+	);
+}
+
+add_filter( 'wpcf7_form_tag', 'yg_cf7_relax_main_fields', 11, 1 );
+
+/**
+ * Drop the `*` from Study Level and Intake on the main site.
+ *
+ * Runs on both the render and the submission, with the page found the same
+ * way as for the branch (yg_cf7_branch_required_here()), so the browser and
+ * CF7's server-side validation always agree. The tags keep `first_as_label`,
+ * so an untouched select sends an empty value, never its placeholder text.
+ *
+ * @param WPCF7_FormTag|array $tag The form tag.
+ * @return WPCF7_FormTag|array
+ */
+function yg_cf7_relax_main_fields( $tag ) {
+	$form = class_exists( 'WPCF7_ContactForm' ) ? WPCF7_ContactForm::get_current() : null;
+	if ( ! $form ) {
+		return $tag;
+	}
+
+	$optional = yg_cf7_main_optional_fields();
+	$id       = (int) $form->id();
+	if ( empty( $optional[ $id ] ) ) {
+		return $tag;
+	}
+
+	$name = is_object( $tag ) ? $tag->name : ( isset( $tag['name'] ) ? $tag['name'] : '' );
+	$type = is_object( $tag ) ? $tag->type : ( isset( $tag['type'] ) ? $tag['type'] : '' );
+
+	if ( ! in_array( $name, $optional[ $id ], true ) || '*' !== substr( $type, -1 ) || yg_cf7_branch_required_here() ) {
+		return $tag;
+	}
+
+	if ( is_object( $tag ) ) {
+		$tag->type = substr( $type, 0, -1 );
+	} else {
+		$tag['type'] = substr( $type, 0, -1 );
+	}
+	return $tag;
+}
+
+add_filter( 'wpcf7_form_elements', 'yg_cf7_reorder_enquiry_form', 20, 1 );
+
+/**
+ * Move Study Level and Intake below Branch on the main site.
+ *
+ * The form content itself is left as it is (the German pages keep the
+ * old order, and a content push from staging cannot undo this). Works on the
+ * rendered field paragraphs; if any of the four cannot be found exactly once
+ * the markup is returned untouched, so a form edit can never break the form.
+ *
+ * @param string $html Rendered form elements.
+ * @return string
+ */
+function yg_cf7_reorder_enquiry_form( $html ) {
+	$form = class_exists( 'WPCF7_ContactForm' ) ? WPCF7_ContactForm::get_current() : null;
+	if ( ! $form || ! array_key_exists( (int) $form->id(), yg_cf7_main_optional_fields() ) || yg_cf7_branch_required_here() ) {
+		return $html;
+	}
+
+	$blocks = array();
+	foreach ( array( 'level_of_education', 'preferred_intake_of_pursuing', 'nearest_branch' ) as $field ) {
+		$re = '~<p\b[^>]*>(?:(?!</p>).)*?data-name="' . preg_quote( $field, '~' ) . '"(?:(?!</p>).)*</p>~s';
+		if ( 1 !== preg_match_all( $re, $html, $m ) ) {
+			return $html;
+		}
+		$blocks[ $field ] = $m[0][0];
+	}
+
+	$moved = $blocks['level_of_education'] . "\n" . $blocks['preferred_intake_of_pursuing'];
+	$out   = str_replace( array( $blocks['level_of_education'], $blocks['preferred_intake_of_pursuing'] ), '', $html );
+	$out   = str_replace( $blocks['nearest_branch'], $blocks['nearest_branch'] . "\n" . $moved, $out );
+
+	return 1 === substr_count( $out, 'data-name="level_of_education"' ) && 1 === substr_count( $out, 'data-name="preferred_intake_of_pursuing"' ) ? $out : $html;
 }
 
 add_action( 'wp_footer', 'yg_cf7_required_fields_script', 998 );
