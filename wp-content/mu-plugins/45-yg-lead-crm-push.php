@@ -5,7 +5,7 @@
  *              validated form submission. Replaces the site-wide JavaScript
  *              submit listener that posted every form, including half-filled
  *              ones, and unhooks it if it is still present in the theme.
- * Version:     2.4.0
+ * Version:     2.5.0
  * Author:      Stealth Digital
  *
  * Why this is a must-use plugin and not theme code
@@ -41,6 +41,10 @@
  * browser transport listens for CF7's `wpcf7submit` event, NOT for the DOM
  * "submit" event the old code used - that is the whole difference.
  *
+ * 2.5.0 - (2026-11-17) mh.yesgermany.com leads can be sent again: the hard
+ *   skip is now the filter yg_lead_api_push_mh (default off), which
+ *   mu-plugin 58 turns on.
+ *
  * 2.0.0 - server transport made complete (2026-10-13, after outbound 8443 opened)
  * ------------------------------------------------------------------------------
  * - Browser-only values (document.referrer, sessionStorage yg_referral_url and
@@ -48,8 +52,8 @@
  *   fields on every CF7 form just before it is submitted, so the server sends
  *   exactly what the old client script sent - including yg_session_active,
  *   which 1.x never sent.
- * - mh.yesgermany.com submissions are never sent from here: mh is email only
- *   (mu-plugins 53 / 58).
+ * - mh.yesgermany.com submissions are sent only when mu-plugin 58 says so
+ *   (filter yg_lead_api_push_mh).
  * - Every server answer is stored in the Lead API log, failures included
  *   (1.x wrote failures only to a text file).
  * - yg_lead_api_send() returns the result, so the hourly job (mu-plugin 59)
@@ -751,8 +755,12 @@ function yg_lead_api_push( $contact_form, &$abort = null, $submission = null ) {
 			return;
 		}
 
-		/* mh.yesgermany.com leads are email only (mu-plugins 53 / 58) - never sent from here. */
-		if ( function_exists( 'yg_mh_mail_is_mh_submission' ) && yg_mh_mail_is_mh_submission() ) {
+		/*
+		 * mh.yesgermany.com leads: sent only while mu-plugin 58 allows it
+		 * (email only 8 Oct - 17 Nov 2026; CRM + email since). 58 also fixes
+		 * their page URL and ad details through yg_lead_api_payload.
+		 */
+		if ( function_exists( 'yg_mh_mail_is_mh_submission' ) && yg_mh_mail_is_mh_submission() && ! apply_filters( 'yg_lead_api_push_mh', false ) ) {
 			return;
 		}
 
